@@ -113,7 +113,7 @@ export class RouteStatisticsComponent extends BaseMapComponent implements OnInit
         this.isKmMarkersOn = false;
         this.isExpanded = false;
         this.isVisible = false;
-        this.isTable = false;
+        this.isTable = true;
         this.statistics = null;
         this.subRouteRange = null;
         this.initializeStatistics(null);

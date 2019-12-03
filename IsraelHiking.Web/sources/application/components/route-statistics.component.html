@@ -59,10 +59,10 @@
                 </div>
             </div>
         </div>
-        <button mat-button class="chart-button chart-table-button" *ngIf="!isExpanded" (click)="changeState('table')" [class.active]="isTable" angulartics2On="click" angularticsCategory="Route statistics" angularticsAction="Toggle table view"><i class="fa icon-table fa-lg"></i></button>
-        <button mat-button class="chart-button chart-graph-button" (click)="changeState('graph')" [class.active]="!isTable" angulartics2On="click" angularticsCategory="Route statistics" angularticsAction="Toggle graph view"><i class="fa icon-area-chart fa-lg"></i></button>
+        <!--<button mat-button class="chart-button chart-table-button" *ngIf="!isExpanded" (click)="changeState('table')" [class.active]="isTable" angulartics2On="click" angularticsCategory="Route statistics" angularticsAction="Toggle table view"><i class="fa icon-table fa-lg"></i></button>-->
+        <!--<button mat-button class="chart-button chart-graph-button" (click)="changeState('graph')" [class.active]="!isTable" angulartics2On="click" angularticsCategory="Route statistics" angularticsAction="Toggle graph view"><i class="fa icon-area-chart fa-lg"></i></button>-->
         <button mat-button class="chart-button chart-close-button" (click)="toggle()"><i class="fa icon-close fa-lg"></i></button>
-        <button mat-button class="chart-button chart-km-button" (click)="toggleKmMarker()" [class.active]="isKmMarkersOn" matTooltip="{{resources.kmPoi}}" matTooltipPosition="right" angulartics2On="click" angularticsCategory="Route statistics" angularticsAction="Toggle KM markers"><i class="fa icon-map-marker fa-lg"></i></button>
+        <!--<button mat-button class="chart-button chart-km-button" (click)="toggleKmMarker()" [class.active]="isKmMarkersOn" matTooltip="{{resources.kmPoi}}" matTooltipPosition="right" angulartics2On="click" angularticsCategory="Route statistics" angularticsAction="Toggle KM markers"><i class="fa icon-map-marker fa-lg"></i></button>-->
         <button mat-button class="chart-button chart-expand-button hidden-xs" *ngIf="!isTable" (click)="toggleExpand()" angulartics2On="click" angularticsCategory="Route statistics" angularticsAction="Toggle expand view"><i class="fa fa-lg" [ngClass]="{ 'icon-chevron-right' : isExpanded, 'icon-chevron-left' : !isExpanded }"></i></button>
     </div>
     <div *ngIf="!isVisible">

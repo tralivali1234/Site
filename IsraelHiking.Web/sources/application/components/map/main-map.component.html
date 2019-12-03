@@ -18,17 +18,17 @@
             <zoom #topLeftControl></zoom>
             <location #topLeftControl *ngIf="isMobile() || !isIFrame()"></location>
             <layers #topLeftControl></layers>
-            <file #topLeftControl></file>
-            <file-save-as #topLeftControl *ngIf="!isIFrame()"></file-save-as>
-            <edit-osm #topLeftControl *ngIf="!isMobile() && !isIFrame()"></edit-osm>
-            <info #topLeftControl></info>
-            <osm-user #topRightControl *ngIf="!isIFrame()"></osm-user>
+            <!--<file #topLeftControl></file>-->
+            <!--<file-save-as #topLeftControl *ngIf="!isIFrame()"></file-save-as>-->
+            <!--<edit-osm #topLeftControl *ngIf="!isMobile() && !isIFrame()"></edit-osm>-->
+            <!--<info #topLeftControl></info>-->
+            <!--<osm-user #topRightControl *ngIf="!isIFrame()"></osm-user>-->
             <search #topRightControl *ngIf="!isIFrame()"></search>
             <drawing #topRightControl *ngIf="!isIFrame()"></drawing>
             <share #topRightControl></share>
-            <language #topRightControl></language>
+            <!--<language #topRightControl></language>-->
             <route-statistics #bottomRightControl></route-statistics>
-            <ihm-link *ngIf="!isApp()" #bottomLeftControl></ihm-link>
+            <!--<ihm-link *ngIf="!isApp()" #bottomLeftControl></ihm-link>-->
         </mgl-map>
+        </div>
     </div>
-</div>
