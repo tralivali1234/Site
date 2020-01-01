@@ -1,4 +1,5 @@
-﻿using IsraelHiking.API.Executors;
+﻿using GeoAPI.Geometries;
+using IsraelHiking.API.Executors;
 using IsraelHiking.API.Services;
 using IsraelHiking.Common;
 using IsraelHiking.DataAccessInterfaces;
@@ -33,8 +34,8 @@ namespace IsraelHiking.API.Tests.Services.Poi
             {
                 Geometry = new LineString(new[]
                 {
-                    new CoordinateZ(0, 0),
-                    new CoordinateZ(1, 1),
+                    new Coordinate(0, 0, double.NaN),
+                    new Coordinate(1, 1, double.NaN),
                 }),
                 Attributes = new AttributesTable
                 {
@@ -44,6 +45,7 @@ namespace IsraelHiking.API.Tests.Services.Poi
                     {FeatureAttributes.POI_SOURCE, source},
                     {FeatureAttributes.POI_ICON, FeatureAttributes.POI_ICON},
                     {FeatureAttributes.POI_ICON_COLOR, FeatureAttributes.POI_ICON_COLOR},
+                    {FeatureAttributes.POI_ALT, 11.1},
                     {
                         FeatureAttributes.POI_GEOLOCATION, new AttributesTable
                         {

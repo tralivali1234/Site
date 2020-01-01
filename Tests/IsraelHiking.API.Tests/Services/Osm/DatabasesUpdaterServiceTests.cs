@@ -1,4 +1,5 @@
-﻿using IsraelHiking.API.Executors;
+﻿using GeoAPI.Geometries;
+using IsraelHiking.API.Executors;
 using IsraelHiking.API.Services;
 using IsraelHiking.API.Services.Osm;
 using IsraelHiking.API.Services.Poi;
@@ -73,6 +74,7 @@ namespace IsraelHiking.API.Tests.Services.Osm
             adapter.GetPointsForIndexing().Returns(new List<Feature>());
             _pointsOfInterestAdapterFactory.GetBySource(Arg.Any<string>()).Returns(adapter);
             _elasticSearchGateway.GetExternalPoisBySource(Arg.Any<string>()).Returns(new List<Feature>());
+            _featuresMergeExecutor.Merge(Arg.Any<List<Feature>>()).Returns(new List<Feature>());
 
             _service.Rebuild(new UpdateRequest { Highways = true, PointsOfInterest = true, SiteMap = true }).Wait();
 

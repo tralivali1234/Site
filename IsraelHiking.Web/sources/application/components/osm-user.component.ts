@@ -43,6 +43,9 @@ export class OsmUserComponent extends BaseMapComponent implements OnDestroy {
     @select((state: ApplicationState) => state.configuration.isAdvanced)
     public isAdvanced: Observable<boolean>;
 
+    @select((state: ApplicationState) => state.configuration.isBatteryOptimization)
+    public isBatteryOptimization: Observable<boolean>;
+
     @LocalStorage()
     public agreedToTheTermsOfService = false;
 
@@ -150,18 +153,28 @@ export class OsmUserComponent extends BaseMapComponent implements OnDestroy {
             return;
         }
         this.toastService.info(this.resources.preparingDataForIssueReport);
-        let logs = await this.loggingService.getLog();
-        let logBase64 = Base64.encode(logs);
-        cordova.plugins.email.open({
-            to: ["israelhikingmap@gmail.com"],
-            subject: "Issue reported by " + this.userInfo.displayName,
-            body: this.resources.reportAnIssueInstructions,
-            attachments: ["base64:log.txt//" + logBase64]
-        });
+        try {
+            let logs = await this.loggingService.getLog();
+            let logBase64 = Base64.encode(logs);
+            cordova.plugins.email.open({
+                to: ["israelhikingmap@gmail.com"],
+                subject: "Issue reported by " + this.userInfo.displayName,
+                body: this.resources.reportAnIssueInstructions,
+                attachments: ["base64:log.txt//" + logBase64]
+            });
+        } catch (ex) {
+            alert(`Ooopppss... Any chance you can take a screenshot and send it to israelhikingmap@gmail.com?` +
+                `\nSend issue failed: ${ex.toString()}`);
+        }
+
     }
 
     public toggleIsAdvanced() {
         this.ngRedux.dispatch(ConfigurationActions.toggleIsAdvanceAction);
+    }
+
+    public toggleBatteryOprimization() {
+        this.ngRedux.dispatch(ConfigurationActions.toggleIsBatteryOptimizationAction);
     }
 
     public isOnline(): boolean {

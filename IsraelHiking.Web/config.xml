@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
-<widget id="fire.fighters.il.org.osm.israelhiking" version="8.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:android="http://schemas.android.com/apk/res/android" xmlns:cdv="http://cordova.apache.org/ns/1.0">
-  <name>Israel Hiking Map for Fire Fighters</name>
+<widget id="fire.fighters.il.org.osm.israelhiking" version="8.5.0" xmlns="http://www.w3.org/ns/widgets" xmlns:android="http://schemas.android.com/apk/res/android" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+  <name>ניווט לוחמי האש</name>
   <description>An application for fire fighters navigation.</description>
   <author email="IsraelHikingMap@gmail.com" href="http://israelhiking.osm.org.il">Israel Hiking Map</author>
   <preference name="AndroidLaunchMode" value="singleInstance" />
@@ -131,6 +131,15 @@
   <platform name="ios">
     <allow-intent href="itms:*" />
     <allow-intent href="itms-apps:*" />
+    <edit-config target="NSCameraUsageDescription" file="*-Info.plist" mode="merge">
+        <string>We need the camera in order to take a picture</string>
+    </edit-config>
+    <edit-config target="NSPhotoLibraryUsageDescription" file="*-Info.plist" mode="merge">
+        <string>We need access to the photo library to get pictures from there</string>
+    </edit-config>
+    <edit-config target="NSPhotoLibraryAddUsageDescription" file="*-Info.plist" mode="merge">
+        <string>We need access to the photo library to save pictures there</string>
+    </edit-config>
     <preference name="WKSuspendInBackground" value="false" />
     <preference name="StatusBarOverlaysWebView" value="false" />
     <preference name="StatusBarBackgroundColor" value="#0a42bb" />
@@ -164,5 +173,4 @@
     <variable name="ALWAYS_USAGE_DESCRIPTION" value="App requires background tracking " />
     <variable name="MOTION_USAGE_DESCRIPTION" value="App requires motion detection" />
   </plugin>
-  <engine name="ios" spec="^4.5.5" />
 </widget>

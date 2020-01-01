@@ -1,10 +1,10 @@
 ﻿using Elasticsearch.Net;
+using GeoAPI.Geometries;
 using IsraelHiking.Common;
 using IsraelHiking.Common.Extensions;
 using IsraelHiking.DataAccessInterfaces;
 using Microsoft.Extensions.Logging;
 using Nest;
-using Nest.JsonNetSerializer;
 using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.IO;
@@ -16,6 +16,20 @@ using Feature = NetTopologySuite.Features.Feature;
 
 namespace IsraelHiking.DataAccess
 {
+    public class GeoJsonNetSerializer : JsonNetSerializer
+    {
+        public GeoJsonNetSerializer(IConnectionSettingsValues settings, GeometryFactory geometryFactory) : base(settings)
+        {
+            OverwriteDefaultSerializers((s, cvs) =>
+            {
+                foreach (var converter in GeoJsonSerializer.Create(geometryFactory).Converters)
+                {
+                    s.Converters.Add(converter);
+                }
+            });
+        }
+    }
+
     public class ElasticSearchGateway : IElasticSearchGateway
     {
         private const int PAGE_SIZE = 10000;
@@ -49,10 +63,7 @@ namespace IsraelHiking.DataAccess
             var connectionString = new ConnectionSettings(
                 pool,
                 new HttpConnection(),
-                new ConnectionSettings.SourceSerializerFactory((builtin, settings) => new JsonNetSerializer(builtin, settings, () => new Newtonsoft.Json.JsonSerializerSettings
-                {
-                    Converters = GeoJsonSerializer.Create(_geometryFactory, 3).Converters
-                })))
+                new SerializerFactory(s => new GeoJsonNetSerializer(s, _geometryFactory)))
                 .PrettyJson();
             _elasticClient = new ElasticClient(connectionString);
             if (_elasticClient.IndexExists(OSM_POIS_INDEX1).Exists == false &&
@@ -250,7 +261,8 @@ namespace IsraelHiking.DataAccess
         {
             var response = await _elasticClient.SearchAsync<Feature>(
                 s => s.Index(OSM_HIGHWAYS_ALIAS)
-                    .Size(5000).Query(
+                    .Size(5000)
+                    .Query(
                         q => q.GeoShapeEnvelope(
                             e => e.Coordinates(new[]
                                 {
@@ -261,6 +273,7 @@ namespace IsraelHiking.DataAccess
                         )
                     )
             );
+            var json = response.DebugInformation;
             return response.Documents.ToList();
         }
 
@@ -289,6 +302,7 @@ namespace IsraelHiking.DataAccess
         public async Task<List<Feature>> GetAllPointsOfInterest()
         {
             var list = new List<Feature>();
+            _elasticClient.Refresh(OSM_POIS_ALIAS);
             var categories = Categories.Points.Concat(Categories.Routes).Select(c => c.ToLower()).ToArray();
             var response = await _elasticClient.SearchAsync<Feature>(s => s.Index(OSM_POIS_ALIAS)
                     .Size(10000)
@@ -344,11 +358,21 @@ namespace IsraelHiking.DataAccess
             var response = await _elasticClient.SearchAsync<Feature>(
                 s => s.Index(EXTERNAL_POIS)
                     .Size(10000)
+                    .Scroll("10m")
                     .Query(q =>
                         q.Term(t => t.Field($"{PROPERTIES}.{FeatureAttributes.POI_SOURCE}").Value(source.ToLower()))
                     )
             );
-            return response.Documents.ToList();
+            var features = response.Documents.ToList();
+            var results = _elasticClient.Scroll<Feature>("10s", response.ScrollId);
+            features.AddRange(results.Documents.ToList());
+            while (results.Documents.Any())
+            {
+                results = _elasticClient.Scroll<Feature>("10s", results.ScrollId);
+                features.AddRange(results.Documents.ToList());
+            }
+            _logger.LogInformation($"Got {features.Count} features for source {source}");
+            return features;
         }
 
         public async Task<Feature> GetExternalPoiById(string id, string source)

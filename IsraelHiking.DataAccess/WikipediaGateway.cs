@@ -1,4 +1,5 @@
-﻿using IsraelHiking.Common;
+﻿using GeoAPI.Geometries;
+using IsraelHiking.Common;
 using IsraelHiking.Common.Extensions;
 using IsraelHiking.Common.Poi;
 using IsraelHiking.DataAccessInterfaces;
@@ -71,7 +72,7 @@ namespace IsraelHiking.DataAccess
                     var features = new List<Feature>();
                     foreach (var geoSearchResultItem in results)
                     {
-                        var coordinate = new CoordinateZ(geoSearchResultItem.Coordinate.Longitude, geoSearchResultItem.Coordinate.Latitude);
+                        var coordinate = new Coordinate(geoSearchResultItem.Coordinate.Longitude, geoSearchResultItem.Coordinate.Latitude, double.NaN);
                         var attributes = GetAttributes(coordinate, geoSearchResultItem.Page.Title,
                             geoSearchResultItem.Page.Id.ToString(), language);
                         features.Add(new Feature(new Point(coordinate), attributes));
@@ -128,11 +129,11 @@ namespace IsraelHiking.DataAccess
             {
                 return null;
             }
-            var coordinate = new CoordinateZ(geoCoordinate.Longitude, geoCoordinate.Latitude, double.NaN);
+            var coordinate = new Coordinate(geoCoordinate.Longitude, geoCoordinate.Latitude, double.NaN);
             var attributes = GetAttributes(coordinate, page.Title, page.Id.ToString(), language);
             attributes.Add(FeatureAttributes.DESCRIPTION + ":" + language, page.GetPropertyGroup<ExtractsPropertyGroup>().Extract ?? string.Empty);
             var imageUrl = page.GetPropertyGroup<PageImagesPropertyGroup>().OriginalImage.Url ?? string.Empty;
-            if (!string.IsNullOrWhiteSpace(imageUrl) && 
+            if (!string.IsNullOrWhiteSpace(imageUrl) &&
                 (imageUrl.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
                 imageUrl.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
                 imageUrl.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
@@ -171,7 +172,8 @@ namespace IsraelHiking.DataAccess
                 {FeatureAttributes.POI_SEARCH_FACTOR, 1.0},
                 {FeatureAttributes.POI_GEOLOCATION, geoLocation},
                 {FeatureAttributes.WEBSITE, _wikiSites[language].SiteInfo.MakeArticleUrl(title)},
-                {FeatureAttributes.POI_SOURCE_IMAGE_URL, WIKI_LOGO }
+                {FeatureAttributes.POI_SOURCE_IMAGE_URL, WIKI_LOGO}
+
             };
             return attributes;
         }

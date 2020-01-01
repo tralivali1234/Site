@@ -2,12 +2,14 @@
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using GeoAPI.Geometries;
 using IsraelHiking.API.Executors;
 using IsraelHiking.API.Services.Poi;
 using IsraelHiking.Common;
 using IsraelHiking.Common.Extensions;
 using IsraelHiking.DataAccessInterfaces;
 using Microsoft.Extensions.Logging;
+using NetTopologySuite.Geometries;
 using OsmSharp;
 using OsmSharp.Changesets;
 using OsmSharp.Complete;
@@ -29,7 +31,6 @@ namespace IsraelHiking.API.Services.Osm
         private readonly IGraphHopperGateway _graphHopperGateway;
         private readonly IPointsOfInterestFilesCreatorExecutor _pointsOfInterestFilesCreatorExecutor;
         private readonly ILogger _logger;
-
         /// <summary>
         /// Service's constructor
         /// </summary>
@@ -135,6 +136,11 @@ namespace IsraelHiking.API.Services.Osm
                 {
                     featureToUpdate.Attributes.AddOrUpdate(attributeKey, featureFromDb.Attributes[attributeKey]);
                 }
+                if (featureToUpdate.Geometry.OgcGeometryType == OgcGeometryType.Point &&
+                    featureFromDb.Geometry.OgcGeometryType != OgcGeometryType.Point)
+                {
+                    featureToUpdate.Geometry = featureFromDb.Geometry;
+                }
             }
             await _elasticSearchGateway.UpdatePointsOfInterestData(features);
         }
@@ -186,7 +192,7 @@ namespace IsraelHiking.API.Services.Osm
             var osmSource = _pointsOfInterestAdapterFactory.GetBySource(Sources.OSM);
             var osmFeaturesTask = osmSource.GetPointsForIndexing();
             var sources = _pointsOfInterestAdapterFactory.GetAll().Where(s=> s.Source != Sources.OSM).Select(s => s.Source);
-            var otherTasks = sources.Select(s => _elasticSearchGateway.GetExternalPoisBySource(s));
+            var otherTasks = sources.Select(s => _elasticSearchGateway.GetExternalPoisBySource(s)).ToArray();
             await Task.WhenAll(new Task[] { osmFeaturesTask }.Concat(otherTasks));
             var features = _featuresMergeExecutor.Merge(osmFeaturesTask.Result.Concat(otherTasks.SelectMany(t => t.Result)).ToList());
             await _elasticSearchGateway.UpdatePointsOfInterestZeroDownTime(features);

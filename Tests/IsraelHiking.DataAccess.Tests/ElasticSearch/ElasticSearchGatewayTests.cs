@@ -1,4 +1,5 @@
-﻿using IsraelHiking.Common;
+﻿using GeoAPI.Geometries;
+using IsraelHiking.Common;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using NetTopologySuite.Geometries;
 using System.Collections.Generic;
@@ -87,6 +88,18 @@ namespace IsraelHiking.DataAccess.Tests.ElasticSearch
             var features = _gateway.GetContainers(new Coordinate(35.225306, 32.703806)).Result;
 
             Assert.IsTrue(features.Count > 0);
+        }
+
+        [TestMethod]
+        [Ignore]
+        public void GetPoisBySource_ShouldGetThem()
+        {
+            _gateway.Initialize();
+
+            var features = _gateway.GetExternalPoisBySource(Sources.INATURE).Result;
+            features = _gateway.GetExternalPoisBySource(Sources.WIKIPEDIA).Result;
+
+            Assert.IsTrue(features.Count > 10000);
         }
     }
 }

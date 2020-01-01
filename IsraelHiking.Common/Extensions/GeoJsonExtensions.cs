@@ -13,7 +13,7 @@ namespace IsraelHiking.Common.Extensions
         {
             if (!attributes.Exists(key))
             {
-                attributes.Add(key, value);
+                attributes.AddAttribute(key, value);
             }
             else
             {
@@ -180,7 +180,7 @@ namespace IsraelHiking.Common.Extensions
             switch (value)
             {
                 case List<object> objectsList:
-                    titles.AddRange(objectsList.Cast<string>());
+                    titles.AddRange(objectsList.Select(o => o.ToString()).ToList());
                     break;
                 case List<string> stringsList:
                     titles.AddRange(stringsList);

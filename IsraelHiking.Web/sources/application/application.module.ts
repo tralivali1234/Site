@@ -44,6 +44,7 @@ import { NgxD3Service } from "@katze/ngx-d3";
 import { InfiniteScrollModule } from "ngx-infinite-scroll";
 import { NgReduxModule } from "@angular-redux/store";
 import { NgxMapboxGLModule } from "ngx-mapbox-gl";
+import { NgIdleModule } from "@ng-idle/core";
 // services
 import { GetTextCatalogService } from "./services/gettext-catalog.service";
 import { AuthorizationService } from "./services/authorization.service";
@@ -84,6 +85,7 @@ import { DefaultStyleService } from "./services/default-style.service";
 import { DatabaseService } from "./services/database.service";
 import { ApplicationExitService } from "./services/application-exit.service";
 import { ConnectionService } from "./services/connection.service";
+import { ScreenService } from "./services/screen.service";
 import { GlobalErrorHandler } from "./services/global-error.handler";
 // interactions
 import { RouteEditPoiInteraction } from "./components/intercations/route-edit-poi.interaction";
@@ -148,17 +150,21 @@ import { routes } from "./routes";
 
 export function initializeApplication(injector: Injector) {
     return async () => {
-        let loggingService = injector.get<LoggingService>(LoggingService);
-        await loggingService.initialize();
+        let loggingService = null;
         try {
+            loggingService = injector.get<LoggingService>(LoggingService);
+            await loggingService.initialize();
             await loggingService.info("Starting IHM Application Initialization");
+            injector.get<ScreenService>(ScreenService).initialize();
             await injector.get<DatabaseService>(DatabaseService).initialize();
             injector.get<ApplicationExitService>(ApplicationExitService).initialize();
             injector.get<OpenWithService>(OpenWithService).initialize();
             await loggingService.info("Finished IHM Application Initialization");
-        } catch (error) {
-            loggingService.error(`Failed IHM Application Initialization: ${error.toString()}`);
-            alert(`Sorrrrrrrrrrrrrrrrrry.... Failed to initialize IHM due to the following error: \n${error.toString()}`);
+        } catch (ex) {
+            alert(`alert("Ooopppss... Any chance you can take a screenshot and send it to israelhikingmap@gmail.com?` +
+                `\nInit failed: ${ex.toString()}`);
+            loggingService.error(`Failed IHM Application Initialization: ${ex.toString()}`);
+
         }
     };
 }
@@ -207,7 +213,8 @@ NgModule({
         NgxImageGalleryModule,
         InfiniteScrollModule,
         NgReduxModule,
-        NgxMapboxGLModule.withConfig({ accessToken: "no-token" })
+        NgxMapboxGLModule.withConfig({ accessToken: "no-token" }),
+        NgIdleModule.forRoot()
     ],
     entryComponents: [
         LayersSidebarComponent,
@@ -288,6 +295,7 @@ NgModule({
         DatabaseService,
         ApplicationExitService,
         ConnectionService,
+        ScreenService,
         RouteEditPoiInteraction,
         RouteEditRouteInteraction
     ],

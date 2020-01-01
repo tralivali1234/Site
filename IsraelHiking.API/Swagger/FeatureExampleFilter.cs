@@ -1,4 +1,5 @@
-﻿using Microsoft.OpenApi.Any;
+﻿using GeoAPI.Geometries;
+using Microsoft.OpenApi.Any;
 using Microsoft.OpenApi.Models;
 using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;

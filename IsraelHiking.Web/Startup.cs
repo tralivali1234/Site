@@ -76,7 +76,7 @@ namespace IsraelHiking.Web
                 options.ModelMetadataDetailsProviders.Add(new SuppressChildValidationMetadataProvider(typeof(PointOfInterestExtended)));
             }).AddNewtonsoftJson(options =>
             {
-                foreach (var converter in GeoJsonSerializer.Create(geometryFactory, 3).Converters)
+                foreach (var converter in GeoJsonSerializer.Create(geometryFactory).Converters)
                 {
                     options.SerializerSettings.Converters.Add(converter);
                 }
@@ -104,7 +104,7 @@ namespace IsraelHiking.Web
 
             services.AddSwaggerGen(c =>
             {
-                c.SwaggerDoc("v1", new OpenApiInfo { Title = "Israel Hiking API", Version = "v1" });
+                c.SwaggerDoc("v1", new OpenApiInfo { Title = "Israel Hiking API", Version = GetType().Assembly.GetName().Version.ToString() });
                 c.SchemaFilter<FeatureExampleFilter>();
                 c.SchemaFilter<FeatureCollectionExampleFilter>();
                 c.AddSecurityDefinition("Bearer",
@@ -132,10 +132,7 @@ namespace IsraelHiking.Web
             {
                 app.UseDeveloperExceptionPage();
             }
-            else
-            {
-                rewriteOptions.AddRedirectToHttps();
-            }
+            rewriteOptions.AddRedirectToHttps();
             app.UseRewriter(rewriteOptions);
 
             app.UseCors(builder =>
