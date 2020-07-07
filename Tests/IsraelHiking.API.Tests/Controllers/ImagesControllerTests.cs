@@ -1,7 +1,10 @@
 ﻿using IsraelHiking.API.Controllers;
 using IsraelHiking.API.Services;
 using IsraelHiking.Common;
+using IsraelHiking.Common.Configuration;
+using IsraelHiking.Common.DataContainer;
 using IsraelHiking.DataAccessInterfaces;
+using IsraelHiking.DataAccessInterfaces.Repositories;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -15,14 +18,14 @@ namespace IsraelHiking.API.Tests.Controllers
     public class ImagesControllerTests
     {
         private ImagesController _controller;
-        private IRepository _repository;
+        private IShareUrlsRepository _repository;
         private IImageCreationService _imageCreationService;
         private IImgurGateway _imgurGateway;
 
         [TestInitialize]
         public void TestInitialize()
         {
-            _repository = Substitute.For<IRepository>();
+            _repository = Substitute.For<IShareUrlsRepository>();
             _imageCreationService = Substitute.For<IImageCreationService>();
             _imgurGateway = Substitute.For<IImgurGateway>();
             var options = Substitute.For<IOptions<ConfigurationData>>();
@@ -53,7 +56,7 @@ namespace IsraelHiking.API.Tests.Controllers
             var siteUrl = new ShareUrl
             {
                 Id = "1",
-                DataContainer = new DataContainer()
+                DataContainer = new DataContainerPoco()
             };
             _repository.GetUrlById(siteUrl.Id).Returns(siteUrl);
 
@@ -73,7 +76,7 @@ namespace IsraelHiking.API.Tests.Controllers
         [TestMethod]
         public void PostDataContainer_ShouldCreateImage()
         {
-            var dataContainer = new DataContainer();
+            var dataContainer = new DataContainerPoco();
 
             _controller.PostDataContainer(dataContainer).Wait();
 

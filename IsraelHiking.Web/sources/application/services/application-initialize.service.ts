@@ -10,6 +10,9 @@ import { PurchaseService } from "./purchase.service";
 import { UseAppDialogComponent } from "../components/dialogs/use-app-dialog.component";
 import { RunningContextService } from "./running-context.service";
 import { DragAndDropService } from "./drag-and-drop.service";
+import { PoiService } from "./poi.service";
+import { RecordedRouteService } from "./recorded-route.service";
+import { DeviceOrientationService } from "./device-orientation.service";
 
 @Injectable()
 export class ApplicationInitializeService {
@@ -21,12 +24,17 @@ export class ApplicationInitializeService {
                 private readonly openWithService: OpenWithService,
                 private readonly purchaseService: PurchaseService,
                 private readonly runnincContextService: RunningContextService,
-                private readonly dragAndDropService: DragAndDropService) {
+                private readonly dragAndDropService: DragAndDropService,
+                private readonly poiService: PoiService,
+                private readonly deviceOrientationService: DeviceOrientationService,
+                private readonly recordedRouteService: RecordedRouteService
+    ) {
     }
 
     public async initialize() {
         try {
             await this.loggingService.initialize();
+            await this.loggingService.info("---------------------------------------");
             await this.loggingService.info("Starting IHM Application Initialization");
             this.screenService.initialize();
             await this.databaseService.initialize();
@@ -39,6 +47,9 @@ export class ApplicationInitializeService {
                 && !this.runnincContextService.isIFrame) {
                 UseAppDialogComponent.openDialog(this.dialog);
             }
+            this.poiService.initialize(); // do not wait for it to complete
+            this.recordedRouteService.initialize();
+            this.deviceOrientationService.initialize();
             await this.loggingService.info("Finished IHM Application Initialization");
         } catch (ex) {
             if (ex.toString().indexOf("A mutation operation was attempted on a database that did not allow mutations") !== -1) {

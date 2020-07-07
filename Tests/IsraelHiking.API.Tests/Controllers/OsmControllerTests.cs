@@ -4,8 +4,9 @@ using IsraelHiking.API.Gpx;
 using IsraelHiking.API.Services;
 using IsraelHiking.API.Services.Osm;
 using IsraelHiking.Common;
-using IsraelHiking.DataAccessInterfaces;
+using IsraelHiking.Common.Configuration;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -26,13 +27,12 @@ namespace IsraelHiking.API.Tests.Controllers
     public class OsmControllerTests
     {
         private OsmController _controller;
-        private IElasticSearchGateway _elasticSearchGateway;
         private IOsmLineAdderService _osmLineAdderService;
         private IClientsFactory _clientsFactory;
         private IDataContainerConverterService _dataContainerConverterService;
         private IAddibleGpxLinesFinderService _addibleGpxLinesFinderService;
         private ConfigurationData _options;
-        private LruCache<string, TokenAndSecret> _cache;
+        private UsersIdAndTokensCache _cache;
 
         private int SetupGpxUrl(GpxFile gpx, List<LineString> addibleLines = null)
         {
@@ -61,28 +61,15 @@ namespace IsraelHiking.API.Tests.Controllers
         {
             _clientsFactory = Substitute.For<IClientsFactory>();
             _dataContainerConverterService = Substitute.For<IDataContainerConverterService>();
-            _elasticSearchGateway = Substitute.For<IElasticSearchGateway>();
             _addibleGpxLinesFinderService = Substitute.For<IAddibleGpxLinesFinderService>();
             _osmLineAdderService = Substitute.For<IOsmLineAdderService>();
             _options = new ConfigurationData();
             var optionsProvider = Substitute.For<IOptions<ConfigurationData>>();
             optionsProvider.Value.Returns(_options);
-            _cache = new LruCache<string, TokenAndSecret>(optionsProvider, Substitute.For<ILogger>());
+            _cache = new UsersIdAndTokensCache(optionsProvider, Substitute.For<ILogger>(), new MemoryCache(new MemoryCacheOptions()));
             _controller = new OsmController(_clientsFactory, _dataContainerConverterService, new ItmWgs84MathTransfromFactory(), 
-                _elasticSearchGateway, _addibleGpxLinesFinderService, _osmLineAdderService, optionsProvider, new GeometryFactory(),
+                _addibleGpxLinesFinderService, _osmLineAdderService, optionsProvider, new GeometryFactory(),
                 _cache);
-        }
-
-        [TestMethod]
-        public void GetSnappings_ShouldGetSome()
-        {
-            var list = new List<Feature> { new Feature(new LineString(new Coordinate[0]), new AttributesTable())};
-            _elasticSearchGateway.GetHighways(Arg.Any<Coordinate>(), Arg.Any<Coordinate>()).Returns(list);
-            _elasticSearchGateway.GetPointsOfInterest(Arg.Any<Coordinate>(), Arg.Any<Coordinate>(), Arg.Any<string[]>(), Arg.Any<string>()).Returns(new List<Feature>());
-
-            var results = _controller.GetSnappings("0,0", "1,1").Result;
-
-            Assert.AreEqual(list.Count, results.Count);
         }
 
         [TestMethod]

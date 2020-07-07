@@ -1,5 +1,8 @@
 ﻿using IsraelHiking.API.Services;
 using IsraelHiking.Common;
+using IsraelHiking.Common.Configuration;
+using IsraelHiking.Common.DataContainer;
+using IsraelHiking.Common.Extensions;
 using IsraelHiking.DataAccessInterfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -25,7 +28,7 @@ namespace IsraelHiking.API.Controllers
         private readonly IElevationDataStorage _elevationDataStorage;
         private readonly IDataContainerConverterService _dataContainerConverterService;
         private readonly IImageCreationService _imageCreationService;
-        private readonly LruCache<string, TokenAndSecret> _cache;
+        private readonly UsersIdAndTokensCache _cache;
         private readonly ConfigurationData _options;
 
         /// <summary>
@@ -42,7 +45,7 @@ namespace IsraelHiking.API.Controllers
             IDataContainerConverterService dataContainerConverterService,
             IOptions<ConfigurationData> options,
             IImageCreationService imageCreationService,
-            LruCache<string, TokenAndSecret> cache)
+            UsersIdAndTokensCache cache)
         {
             _clientsFactory = clientsFactory;
             _elevationDataStorage = elevationDataStorage;
@@ -71,20 +74,18 @@ namespace IsraelHiking.API.Controllers
         /// <returns>A list of traces</returns>
         [Authorize]
         [HttpGet("{id}")]
-        public async Task<DataContainer> GetTraceById(int id)
+        public async Task<DataContainerPoco> GetTraceById(int id)
         {
             var gateway = CreateClient();
             var file = await gateway.GetTraceData(id);
-            using (MemoryStream memoryStream = new MemoryStream())
+            using MemoryStream memoryStream = new MemoryStream();
+            file.Stream.CopyTo(memoryStream);
+            var dataContainer = await _dataContainerConverterService.ToDataContainer(memoryStream.ToArray(), file.FileName);
+            foreach (var latLng in dataContainer.Routes.SelectMany(routeData => routeData.Segments.SelectMany(routeSegmentData => routeSegmentData.Latlngs)))
             {
-                file.Stream.CopyTo(memoryStream);
-                var dataContainer = await _dataContainerConverterService.ToDataContainer(memoryStream.ToArray(), file.FileName);
-                foreach (var latLng in dataContainer.Routes.SelectMany(routeData => routeData.Segments.SelectMany(routeSegmentData => routeSegmentData.Latlngs)))
-                {
-                    latLng.Alt = await _elevationDataStorage.GetElevation(latLng.ToCoordinate());
-                }
-                return dataContainer;
+                latLng.Alt = await _elevationDataStorage.GetElevation(latLng.ToCoordinate());
             }
+            return dataContainer;
         }
 
         /// <summary>
@@ -115,18 +116,16 @@ namespace IsraelHiking.API.Controllers
             {
                 return new BadRequestResult();
             }
-            using (var memoryStream = new MemoryStream())
+            using var memoryStream = new MemoryStream();
+            await file.CopyToAsync(memoryStream);
+            var gateway = CreateClient();
+            memoryStream.Seek(0, SeekOrigin.Begin);
+            await gateway.CreateTrace(new GpxFile
             {
-                await file.CopyToAsync(memoryStream);
-                var gateway = CreateClient();
-                memoryStream.Seek(0, SeekOrigin.Begin);
-                await gateway.CreateTrace(new GpxFile
-                {
-                    Name = file.FileName,
-                    Description = Path.GetFileNameWithoutExtension(file.FileName),
-                    Visibility = Visibility.Private
-                }, memoryStream);
-            }
+                Name = file.FileName,
+                Description = Path.GetFileNameWithoutExtension(file.FileName),
+                Visibility = Visibility.Private
+            }, memoryStream);
             return Ok();
         }
 
@@ -139,11 +138,15 @@ namespace IsraelHiking.API.Controllers
         [Authorize]
         [Route("{id}")]
         [HttpPut]
-        public async Task<Trace> PutGpsTrace(string id, [FromBody]Trace trace)
+        public async Task<IActionResult> PutGpsTrace(string id, [FromBody]Trace trace)
         {
+            if (id != trace.Id)
+            {
+                return BadRequest("trace id and url id do not match");
+            }
             var gateway = CreateClient();
             await gateway.UpdateTrace(TraceToGpxFile(trace));
-            return trace;
+            return Ok(trace);
         }
 
         /// <summary>

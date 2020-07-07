@@ -1,13 +1,11 @@
 ﻿using IsraelHiking.API.Services.Poi;
-using IsraelHiking.Common;
-using IsraelHiking.DataAccessInterfaces;
+using IsraelHiking.Common.Configuration;
+using IsraelHiking.DataAccessInterfaces.Repositories;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Extensions;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
-using System;
 using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -22,7 +20,7 @@ namespace IsraelHiking.API.Services
     public class NonApiMiddleware
     {
         private readonly IWebHostEnvironment _environment;
-        private readonly IRepository _repository;
+        private readonly IShareUrlsRepository _shareUrlsRepository;
         private readonly IPointsOfInterestProvider _pointsOfInterestProvider;
         private readonly ConfigurationData _options;
 
@@ -31,16 +29,16 @@ namespace IsraelHiking.API.Services
         /// </summary>
         /// <param name="next"></param>
         /// <param name="environment"></param>
-        /// <param name="repository"></param>
+        /// <param name="shareUrlsRepository"></param>
         /// <param name="pointsOfInterestProvider"></param>
         /// <param name="options"></param>
         public NonApiMiddleware(RequestDelegate next, IWebHostEnvironment environment,
-            IRepository repository,
+            IShareUrlsRepository shareUrlsRepository,
             IPointsOfInterestProvider pointsOfInterestProvider,
             IOptions<ConfigurationData> options)
         {
             _environment = environment;
-            _repository = repository;
+            _shareUrlsRepository = shareUrlsRepository;
             _options = options.Value;
             _pointsOfInterestProvider = pointsOfInterestProvider;
         }
@@ -64,7 +62,7 @@ namespace IsraelHiking.API.Services
             var isWhatsApp = detectionService.Crawler.Type == Wangkanai.Detection.Models.Crawler.WhatsApp;
             if (isCrawler && context.Request.Path.StartsWithSegments("/share"))
             {
-                var url = await _repository.GetUrlById(context.Request.Path.Value.Split("/").Last());
+                var url = await _shareUrlsRepository.GetUrlById(context.Request.Path.Value.Split("/").Last());
                 var title = string.IsNullOrWhiteSpace(url.Title) ? "Israel Hiking Map Route Share" : url.Title;
                 var thumbnailUrl = context.Request.GetDisplayUrl().Replace("/share/", "/api/images/");
                 if (isWhatsApp)

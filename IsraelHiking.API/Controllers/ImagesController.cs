@@ -1,6 +1,9 @@
 ﻿using IsraelHiking.API.Services;
 using IsraelHiking.Common;
+using IsraelHiking.Common.Configuration;
+using IsraelHiking.Common.DataContainer;
 using IsraelHiking.DataAccessInterfaces;
+using IsraelHiking.DataAccessInterfaces.Repositories;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -20,7 +23,7 @@ namespace IsraelHiking.API.Controllers
     {
         private readonly IImageCreationService _imageCreationService;
         private readonly IImgurGateway _imgurGateway;
-        private readonly IRepository _repository;
+        private readonly IShareUrlsRepository _repository;
         private readonly ConfigurationData _options;
 
         /// <summary>
@@ -30,7 +33,7 @@ namespace IsraelHiking.API.Controllers
         /// <param name="imageCreationService"></param>
         /// <param name="imgurGateway"></param>
         /// <param name="options"></param>
-        public ImagesController(IRepository repository,
+        public ImagesController(IShareUrlsRepository repository,
             IImageCreationService imageCreationService,
             IImgurGateway imgurGateway,
             IOptions<ConfigurationData> options)
@@ -64,7 +67,7 @@ namespace IsraelHiking.API.Controllers
         {
             var center = new LatLng(lat, lon);
             var distance = 0.001;
-            var container = new DataContainer
+            var container = new DataContainerPoco
             {
                 NorthEast = new LatLng(center.Lat + distance, center.Lng + distance),
                 SouthWest = new LatLng(center.Lat - distance, center.Lng - distance),
@@ -119,13 +122,13 @@ namespace IsraelHiking.API.Controllers
         }
 
         /// <summary>
-        /// When sending a <see cref="DataContainer"/> you'll recieve the image preview
+        /// When sending a <see cref="DataContainerPoco"/> you'll recieve the image preview
         /// </summary>
         /// <param name="dataContainer"></param>
         /// <returns></returns>
         [HttpPost]
         [Route("")]
-        public async Task<IActionResult> PostDataContainer([FromBody]DataContainer dataContainer)
+        public async Task<IActionResult> PostDataContainer([FromBody]DataContainerPoco dataContainer)
         {
             var imageData = await _imageCreationService.Create(dataContainer, 600, 315);
             return new FileContentResult(imageData, new MediaTypeHeaderValue("image/png"));
@@ -140,11 +143,9 @@ namespace IsraelHiking.API.Controllers
         [Route("anonymous")]
         public async Task<string> PostUploadImage([FromForm]IFormFile file)
         {
-            using (var stream = file.OpenReadStream())
-            {
-                var link = await _imgurGateway.UploadImage(stream);
-                return link;
-            }
+            using var stream = file.OpenReadStream();
+            var link = await _imgurGateway.UploadImage(stream);
+            return link;
         }
     }
 }

@@ -259,11 +259,15 @@ export class ResourcesService {
     public automaticRecordingUploadHint: string;
     public findMissingRoutesAfterUpload: string;
     public findMissingRoutesAfterUploadHint: string;
+    public gotLostWarnings: string;
+    public gotLostWarningsHint: string;
     public navigateWithWaze: string;
     public offlinePurchaseGraditude: string;
     public purchaseOfflineMaps: string;
     public lastUpdatedOn: string;
     public remainingDistance: string;
+    public longPressHint: string;
+    public continue: string;
     // Toasts: Errors/Warnings/Success
     public unableToGetSearchResults: string;
     public pleaseSelectFrom: string;
@@ -320,6 +324,10 @@ export class ResourcesService {
     public allFilesAreUpToDate: string;
     public thereSoMuchMoreYouCanDoWithOurApp: string;
     public databaseUpgrade: string;
+    public cantEditWhileOffline: string;
+    public downloadingPoisForOfflineUsage: string;
+    public useTheCloudIconToGoOffline: string;
+    public largeFilesUseWifi: string;
     // Help
     public helpSubheader: string;
     public helpInfo: string;
@@ -349,9 +357,10 @@ export class ResourcesService {
     public infoHelpfulLinks: string;
     public infoFacebookLink: string;
     public infoGithubLink: string;
+    public infoOsmWikiLink: string;
+    public infoFAQLink: string;
     public infoDownloadMapForOfflineUse: string;
     public infoDownloadOldMapsForOfflineUse: string;
-    public infoOsmWikiLink: string;
     public infoFooterThanks: string;
     public infoFooterAuthors: string;
     public infoPrivacyPolicyTermsOfService: string;
@@ -519,10 +528,10 @@ export class ResourcesService {
         }
     }
 
-    public setLanguage = async (language: ILanguage): Promise<any> => {
+    public setLanguage = async (language: ILanguage): Promise<void> => {
         this.setRtl(language.rtl);
         this.gettextCatalog.setCurrentLanguage(language.code);
-        await this.gettextCatalog.loadRemote(Urls.translations + language.code + ".json?sign=1588844381796");
+        await this.gettextCatalog.loadRemote(Urls.translations + language.code + ".json?sign=1593283240167");
 
         this.about = this.gettextCatalog.getString("About");
         this.help = this.gettextCatalog.getString("Help");
@@ -763,11 +772,16 @@ export class ResourcesService {
         this.findMissingRoutesAfterUpload = this.gettextCatalog.getString("Find missing routes after upload");
         this.findMissingRoutesAfterUploadHint = this.gettextCatalog.getString("Asks you to classify missing routes " +
             "on the map after you upload a recording");
+        this.gotLostWarnings = this.gettextCatalog.getString("Got lost warnings");
+        this.gotLostWarningsHint = this.gettextCatalog.getString("Lets you know when the your planned route " +
+            "is more than 50 meters from your current position");
         this.navigateWithWaze = this.gettextCatalog.getString("Navigate with Waze");
         this.offlinePurchaseGraditude = this.gettextCatalog.getString("Thanks for purchasing! download instructions here...");
         this.purchaseOfflineMaps = this.gettextCatalog.getString("Purchase maps for offline use");
         this.lastUpdatedOn = this.gettextCatalog.getString("Last updated on");
         this.remainingDistance = this.gettextCatalog.getString("Remaining distance");
+        this.longPressHint = this.gettextCatalog.getString("Long press on any button will shows its usage");
+        this.continue = this.gettextCatalog.getString("Continue");
         // Toasts: Errors/Warnings/Success
         this.unableToGetSearchResults = this.gettextCatalog.getString("Unable to get search results...");
         this.pleaseSelectFrom = this.gettextCatalog.getString("Please select from...");
@@ -836,6 +850,11 @@ export class ResourcesService {
         this.allFilesAreUpToDate = this.gettextCatalog.getString("All files are up-to-date :-)");
         this.thereSoMuchMoreYouCanDoWithOurApp = this.gettextCatalog.getString("There's so much more you can do with our app");
         this.databaseUpgrade = this.gettextCatalog.getString("The offline database has been upgraded...");
+        this.cantEditWhileOffline = this.gettextCatalog.getString("You can't edit while offline...");
+        this.downloadingPoisForOfflineUsage = this.gettextCatalog.getString("Downloading points of interest for offline usage...");
+        this.useTheCloudIconToGoOffline = this.gettextCatalog.getString("Use the cloud icon to go offline");
+        this.largeFilesUseWifi = this.gettextCatalog
+            .getString("You are about to download large files, you can change to wifi before clicking continue...");
         // Help
         this.helpSubheader = this.gettextCatalog.getString("Basic instructions on using this site");
         this.helpInfo = this.gettextCatalog.getString("This dialog");
@@ -869,19 +888,12 @@ export class ResourcesService {
             .getString("This map was generated from {{link}}Open Street Map (OSM){{linkend}} data which is free for all to use and edit.")
             .replace("{{link}}", "<a dir='ltr' href='https://www.openstreetmap.org/' target='_blank'>")
             .replace("{{linkend}}", "</a>");
-        this.infoFacebookLink = this.gettextCatalog
-            .getString("Interact with other users in our {{link}}Facebook group{{linkend}}")
-            .replace("{{link}}", "<a href='https://www.facebook.com/groups/israelhikingmap/' target='_blank'>")
-            .replace("{{linkend}}", "</a>");
+        this.infoFacebookLink = this.gettextCatalog.getString("Interact with other users in our Facebook group");
         this.infoGithubLink = this.gettextCatalog
-            .getString("Request features and report bugs on our {{link}}Github project{{linkend}} page")
-            .replace("{{link}}", "<a href='http://www.github.com/IsraelHikingMap' target='_blank'>")
-            .replace("{{linkend}}", "</a>");
+            .getString("Request features and report bugs on our Github project page");
         this.infoOsmWikiLink = this.gettextCatalog
-            .getString("Learn Israel-specific mapping rules at the {{link}}Israel OSM Wiki Project{{linkend}}")
-            .replace("{{link}}", "<a href='http://wiki.openstreetmap.org/wiki/WikiProject_Israel' target='_blank'>")
-            .replace("{{linkend}}", "</a>");
-        // end
+            .getString("Learn Israel-specific mapping rules at the Israel OSM Wiki Project");
+        this.infoFAQLink = this.gettextCatalog.getString("F.A.Q");
         this.infoDownloadMapForOfflineUse = this.gettextCatalog.getString("Download Map for Offline Use");
         this.infoDownloadOldMapsForOfflineUse = this.gettextCatalog
             .getString("Download old raster maps for offline use in OruxMaps and Locus");

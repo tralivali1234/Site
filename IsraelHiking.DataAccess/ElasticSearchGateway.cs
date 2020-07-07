@@ -1,36 +1,123 @@
 ﻿using Elasticsearch.Net;
 using IsraelHiking.Common;
+using IsraelHiking.Common.Configuration;
 using IsraelHiking.Common.Extensions;
 using IsraelHiking.DataAccessInterfaces;
+using IsraelHiking.DataAccessInterfaces.Repositories;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Nest;
 using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.IO;
+using Newtonsoft.Json;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.Serialization;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Feature = NetTopologySuite.Features.Feature;
 
 namespace IsraelHiking.DataAccess
 {
-    public class GeoJsonNetSerializer : JsonNetSerializer
+    /// <summary>
+	/// A JSON serializer that uses Json.NET for serialization and able to parse geojson objects
+	/// </summary>
+	public class GeoJsonNetSerializer : IElasticsearchSerializer
     {
-        public GeoJsonNetSerializer(IConnectionSettingsValues settings, GeometryFactory geometryFactory) : base(settings)
+        private static readonly Encoding ExpectedEncoding = new UTF8Encoding(false);
+
+        private readonly ConcurrentDictionary<string, IPropertyMapping> Properties = new ConcurrentDictionary<string, IPropertyMapping>();
+        private readonly JsonSerializerSettings _noneIndentedSettings;
+        private readonly JsonSerializerSettings _indentedSettings;
+
+        public GeoJsonNetSerializer(IConnectionSettingsValues settings)
         {
-            OverwriteDefaultSerializers((s, cvs) =>
+            _noneIndentedSettings = CreateSettings(SerializationFormatting.None, settings);
+            _indentedSettings = CreateSettings(SerializationFormatting.Indented, settings);
+        }
+
+        public IPropertyMapping CreatePropertyMapping(MemberInfo memberInfo)
+        {
+            var memberInfoString = $"{memberInfo.DeclaringType?.FullName}.{memberInfo.Name}";
+            if (Properties.TryGetValue(memberInfoString, out var mapping))
+                return mapping;
+
+            mapping = PropertyMappingFromAttributes(memberInfo);
+            Properties.TryAdd(memberInfoString, mapping);
+            return mapping;
+        }
+
+        public T Deserialize<T>(Stream stream)
+        {
+            if (stream == null) return default;
+
+            using var streamReader = new StreamReader(stream);
+            using var jsonTextReader = new JsonTextReader(streamReader);
+            return JsonSerializer.Create(_noneIndentedSettings).Deserialize<T>(jsonTextReader);
+        }
+
+        public Task<T> DeserializeAsync<T>(Stream stream, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            //Json.NET does not support reading a stream asynchronously :(
+            var result = Deserialize<T>(stream);
+            return Task.FromResult(result);
+        }
+
+        public void Serialize(object data, Stream writableStream, SerializationFormatting formatting = SerializationFormatting.Indented)
+        {
+            var serializer = formatting == SerializationFormatting.Indented
+                ? JsonSerializer.Create(_indentedSettings)
+                : JsonSerializer.Create(_noneIndentedSettings);
+
+            using var writer = new StreamWriter(writableStream, ExpectedEncoding, 1024, true);
+            using var jsonWriter = new JsonTextWriter(writer);
+            serializer.Serialize(jsonWriter, data);
+            writer.Flush();
+            jsonWriter.Flush();
+        }
+
+        private static IPropertyMapping PropertyMappingFromAttributes(MemberInfo memberInfo)
+        {
+            var jsonProperty = memberInfo.GetCustomAttribute<JsonPropertyAttribute>(true);
+            var dataMember = memberInfo.GetCustomAttribute<DataMemberAttribute>(true);
+            var ignoreProperty = memberInfo.GetCustomAttribute<JsonIgnoreAttribute>(true);
+            if (jsonProperty == null && ignoreProperty == null && dataMember == null) return null;
+
+            return new PropertyMapping { Name = jsonProperty?.PropertyName ?? dataMember?.Name, Ignore = ignoreProperty != null };
+        }
+
+        private JsonSerializerSettings CreateSettings(SerializationFormatting formatting, IConnectionSettingsValues connectionSettings)
+        {
+            var settings = new JsonSerializerSettings()
             {
-                foreach (var converter in GeoJsonSerializer.Create(geometryFactory, 3).Converters)
-                {
-                    s.Converters.Add(converter);
-                }
-            });
+                Formatting = formatting == SerializationFormatting.Indented ? Formatting.Indented : Formatting.None,
+                ContractResolver = new ElasticContractResolver(connectionSettings, null),
+                DefaultValueHandling = DefaultValueHandling.Include,
+                NullValueHandling = NullValueHandling.Ignore
+            };
+            foreach(var converter in GeoJsonSerializer.Create(GeometryFactory.Default, 3).Converters)
+            {
+                settings.Converters.Add(converter);
+            }
+            return settings;
         }
     }
 
-    public class ElasticSearchGateway : IElasticSearchGateway
+    public class ElasticSearchGateway :
+        IInitializable,
+        IPointsOfInterestRepository,
+        IHighwaysRepository,
+        ISearchRepository,
+        IUserLayersRepository,
+        IImagesRepository,
+        IExternalSourcesRepository,
+        IShareUrlsRepository
     {
         private const int PAGE_SIZE = 10000;
 
@@ -45,66 +132,71 @@ namespace IsraelHiking.DataAccess
         private const string CUSTOM_USER_LAYERS = "custom_user_layers";
         private const string EXTERNAL_POIS = "external_pois";
         private const string IMAGES = "images";
+        private const string REBUILD_LOG = "rebuild_log";
 
         private const int NUMBER_OF_RESULTS = 10;
         private readonly ILogger _logger;
-        private readonly GeometryFactory _geometryFactory;
         private readonly ConfigurationData _options;
         private IElasticClient _elasticClient;
 
-        public ElasticSearchGateway(IOptions<ConfigurationData> options, ILogger logger, GeometryFactory geometryFactory)
+        public ElasticSearchGateway(IOptions<ConfigurationData> options, ILogger logger)
         {
             _options = options.Value;
             _logger = logger;
-            _geometryFactory = geometryFactory;
         }
 
-        public void Initialize()
+        public Task Initialize()
         {
-            var uri = _options.ElasticsearchServerAddress;
-            _logger.LogInformation("Initialing elastic search with uri: " + uri);
-            var pool = new SingleNodeConnectionPool(new Uri(uri));
-            var connectionString = new ConnectionSettings(
-                pool,
-                new HttpConnection(),
-                new SerializerFactory(s => new GeoJsonNetSerializer(s, _geometryFactory)))
-                .PrettyJson();
-            _elasticClient = new ElasticClient(connectionString);
-            if (_elasticClient.IndexExists(OSM_POIS_INDEX1).Exists == false &&
-                _elasticClient.IndexExists(OSM_POIS_INDEX2).Exists == false)
+            return Task.Run(() =>
             {
-                CreatePointsOfInterestIndex(OSM_POIS_INDEX1);
-                _elasticClient.Alias(a => a.Add(add => add.Alias(OSM_POIS_ALIAS).Index(OSM_POIS_INDEX1)));
-            }
-            if (_elasticClient.IndexExists(OSM_POIS_INDEX1).Exists &&
-                _elasticClient.IndexExists(OSM_POIS_INDEX2).Exists)
+                var uri = _options.ElasticsearchServerAddress;
+                var pool = new SingleNodeConnectionPool(new Uri(uri));
+                var connectionString = new ConnectionSettings(
+                    pool,
+                    new HttpConnection(),
+                    new SerializerFactory(s => new GeoJsonNetSerializer(s)))
+                    .PrettyJson();
+                _elasticClient = new ElasticClient(connectionString);
+                if (_elasticClient.IndexExists(OSM_POIS_INDEX1).Exists == false &&
+                    _elasticClient.IndexExists(OSM_POIS_INDEX2).Exists == false)
+                {
+                    CreatePointsOfInterestIndex(OSM_POIS_INDEX1);
+                    _elasticClient.Alias(a => a.Add(add => add.Alias(OSM_POIS_ALIAS).Index(OSM_POIS_INDEX1)));
+                }
+                if (_elasticClient.IndexExists(OSM_HIGHWAYS_INDEX1).Exists == false &&
+                    _elasticClient.IndexExists(OSM_HIGHWAYS_INDEX2).Exists == false)
+                {
+                    CreateHighwaysIndex(OSM_HIGHWAYS_INDEX1);
+                    _elasticClient.Alias(a => a.Add(add => add.Alias(OSM_HIGHWAYS_ALIAS).Index(OSM_HIGHWAYS_INDEX1)));
+                }
+                if (_elasticClient.IndexExists(SHARES).Exists == false)
+                {
+                    _elasticClient.CreateIndex(SHARES);
+                }
+                if (_elasticClient.IndexExists(CUSTOM_USER_LAYERS).Exists == false)
+                {
+                    _elasticClient.CreateIndex(CUSTOM_USER_LAYERS);
+                }
+                if (_elasticClient.IndexExists(IMAGES).Exists == false)
+                {
+                    CreateImagesIndex();
+                }
+                _logger.LogInformation("Finished initialing elasticsearch with uri: " + uri);
+            });
+        }
+
+        private List<T> GetAllItemsByScrolling<T>(ISearchResponse<T> response) where T: class
+        {
+            var list = new List<T>();
+            list.AddRange(response.Documents.ToList());
+            var results = _elasticClient.Scroll<T>("10s", response.ScrollId);
+            list.AddRange(results.Documents.ToList());
+            while (results.Documents.Any())
             {
-                _elasticClient.DeleteIndex(OSM_POIS_INDEX2);
+                results = _elasticClient.Scroll<T>("10s", results.ScrollId);
+                list.AddRange(results.Documents.ToList());
             }
-            if (_elasticClient.IndexExists(OSM_HIGHWAYS_INDEX1).Exists == false &&
-                _elasticClient.IndexExists(OSM_HIGHWAYS_INDEX2).Exists == false)
-            {
-                CreateHighwaysIndex(OSM_HIGHWAYS_INDEX1);
-                _elasticClient.Alias(a => a.Add(add => add.Alias(OSM_HIGHWAYS_ALIAS).Index(OSM_HIGHWAYS_INDEX1)));
-            }
-            if (_elasticClient.IndexExists(OSM_HIGHWAYS_INDEX1).Exists &&
-                _elasticClient.IndexExists(OSM_HIGHWAYS_INDEX2).Exists)
-            {
-                _elasticClient.DeleteIndex(OSM_HIGHWAYS_INDEX2);
-            }
-            if (_elasticClient.IndexExists(SHARES).Exists == false)
-            {
-                _elasticClient.CreateIndex(SHARES);
-            }
-            if (_elasticClient.IndexExists(CUSTOM_USER_LAYERS).Exists == false)
-            {
-                _elasticClient.CreateIndex(CUSTOM_USER_LAYERS);
-            }
-            if (_elasticClient.IndexExists(IMAGES).Exists == false)
-            {
-                CreateImagesIndex();
-            }
-            _logger.LogInformation("Finished initialing elasticsearch with uri: " + uri);
+            return list;
         }
 
         private QueryContainer FeatureNameSearchQueryWithFactor(QueryContainerDescriptor<Feature> q, string searchTerm, string language)
@@ -148,7 +240,7 @@ namespace IsraelHiking.DataAccess
                     .Sort(f => f.Descending("_score"))
                     .Query(q => FeatureNameSearchQueryWithFactor(q, searchTerm, language))
             );
-            return response.Documents.ToList();
+            return response.Documents.Where(f => !f.Attributes.Exists(FeatureAttributes.POI_DELETED)).ToList();
         }
 
         public async Task<List<Feature>> SearchPlaces(string place, string language)
@@ -162,7 +254,7 @@ namespace IsraelHiking.DataAccess
                                 && q.Term(t => t.Field($"{PROPERTIES}.{FeatureAttributes.POI_CONTAINER}").Value(true))
                     )
             );
-            return response.Documents.ToList();
+            return response.Documents.Where(f => !f.Attributes.Exists(FeatureAttributes.POI_DELETED)).ToList();
         }
 
         public async Task<List<Feature>> SearchByLocation(Coordinate nortEast, Coordinate southWest, string searchTerm, string language)
@@ -177,7 +269,7 @@ namespace IsraelHiking.DataAccess
                              q.GeoBoundingBox(b => ConvertToGeoBoundingBox(b, nortEast, southWest))
                     )
             );
-            return response.Documents.ToList();
+            return response.Documents.Where(f => !f.Attributes.Exists(FeatureAttributes.POI_DELETED)).ToList();
         }
 
         public async Task<List<Feature>> GetContainers(Coordinate coordinate)
@@ -192,22 +284,23 @@ namespace IsraelHiking.DataAccess
                                 .Relation(GeoShapeRelation.Contains))
                         && q.Term(t => t.Field($"{PROPERTIES}.{FeatureAttributes.POI_CONTAINER}").Value(true)))
             );
-            return response.Documents.ToList();
+            return response.Documents.Where(f => !f.Attributes.Exists(FeatureAttributes.POI_DELETED)).ToList();
         }
 
-        private async Task UpdateZeroDownTime(string index1, string index2, string alias, Func<string, Task> createIndexDelegate, List<Feature> features)
+        private (string currentIndex, string newIndex) GetIndicesStatus(string index1, string index2, string alias)
         {
             var currentIndex = index1;
             var newIndex = index2;
-            if (_elasticClient.IndexExists(index2).Exists)
+            if (_elasticClient.GetIndicesPointingToAlias(alias).Contains(index2))
             {
                 currentIndex = index2;
                 newIndex = index1;
             }
+            return (currentIndex, newIndex);
+        }
 
-            await createIndexDelegate(newIndex);
-            await UpdateUsingPaging(features, newIndex);
-
+        private async Task SwitchIndices(string currentIndex, string newIndex, string alias)
+        {
             await _elasticClient.AliasAsync(a => a
                 .Remove(i => i.Alias(alias).Index(currentIndex))
                 .Add(i => i.Alias(alias).Index(newIndex))
@@ -215,13 +308,14 @@ namespace IsraelHiking.DataAccess
             await _elasticClient.DeleteIndexAsync(currentIndex);
         }
 
-        public Task UpdateHighwaysZeroDownTime(List<Feature> highways)
+        public async Task UpdateHighwaysZeroDownTime(List<Feature> highways)
         {
-            return UpdateZeroDownTime(OSM_HIGHWAYS_INDEX1,
-                OSM_HIGHWAYS_INDEX2,
-                OSM_HIGHWAYS_ALIAS,
-                CreateHighwaysIndex,
-                highways);
+            var (currentIndex, newIndex) = GetIndicesStatus(OSM_HIGHWAYS_INDEX1, OSM_HIGHWAYS_INDEX2, OSM_HIGHWAYS_ALIAS);
+
+            await CreateHighwaysIndex(newIndex);
+            await UpdateUsingPaging(highways, newIndex);
+
+            await SwitchIndices(currentIndex, newIndex, OSM_HIGHWAYS_ALIAS);
         }
 
         public async Task DeleteHighwaysById(string id)
@@ -230,13 +324,17 @@ namespace IsraelHiking.DataAccess
             await _elasticClient.DeleteAsync<Feature>(fullId, d => d.Index(OSM_HIGHWAYS_ALIAS));
         }
 
-        public Task UpdatePointsOfInterestZeroDownTime(List<Feature> pointsOfInterest)
+        public async Task StorePointsOfInterestDataToSecondaryIndex(List<Feature> pointsOfInterest)
         {
-            return UpdateZeroDownTime(OSM_POIS_INDEX1,
-                OSM_POIS_INDEX2,
-                OSM_POIS_ALIAS,
-                CreatePointsOfInterestIndex,
-                pointsOfInterest);
+            var (_, newIndex) = GetIndicesStatus(OSM_POIS_INDEX1, OSM_POIS_INDEX2, OSM_POIS_ALIAS);
+            await CreatePointsOfInterestIndex(newIndex);
+            await UpdateUsingPaging(pointsOfInterest, newIndex);
+        }
+
+        public async Task SwitchPointsOfInterestIndices()
+        {
+            var (currentIndex, newIndex) = GetIndicesStatus(OSM_POIS_INDEX1, OSM_POIS_INDEX2, OSM_POIS_ALIAS);
+            await SwitchIndices(currentIndex, newIndex, OSM_POIS_ALIAS);
         }
 
         public Task UpdateHighwaysData(List<Feature> features)
@@ -304,12 +402,11 @@ namespace IsraelHiking.DataAccess
                         q.Terms(t => t.Field($"{PROPERTIES}.{FeatureAttributes.POI_LANGUAGE}").Terms(languages))
                     )
             );
-            return response.Documents.ToList();
+            return response.Documents.Where(f => !f.Attributes.Exists(FeatureAttributes.POI_DELETED)).ToList();
         }
 
-        public async Task<List<Feature>> GetAllPointsOfInterest()
+        public async Task<List<Feature>> GetAllPointsOfInterest(bool withDeleted)
         {
-            var list = new List<Feature>();
             _elasticClient.Refresh(OSM_POIS_ALIAS);
             var categories = Categories.Points.Concat(Categories.Routes).Select(c => c.ToLower()).ToArray();
             var response = await _elasticClient.SearchAsync<Feature>(s => s.Index(OSM_POIS_ALIAS)
@@ -317,13 +414,10 @@ namespace IsraelHiking.DataAccess
                     .Scroll("10s")
                     .Query(q => q.Terms(t => t.Field($"{PROPERTIES}.{FeatureAttributes.POI_CATEGORY}").Terms(categories))
                     ));
-            list.AddRange(response.Documents.ToList());
-            var results = _elasticClient.Scroll<Feature>("10s", response.ScrollId);
-            list.AddRange(results.Documents.ToList());
-            while (results.Documents.Any())
+            var list = GetAllItemsByScrolling(response);
+            if (withDeleted == false)
             {
-                results = _elasticClient.Scroll<Feature>("10s", results.ScrollId);
-                list.AddRange(results.Documents.ToList());
+                list = list.Where(f => !f.Attributes.Exists(FeatureAttributes.POI_DELETED)).ToList();
             }
             return list;
         }
@@ -337,22 +431,35 @@ namespace IsraelHiking.DataAccess
             ).Field($"{PROPERTIES}.{FeatureAttributes.POI_GEOLOCATION}");
         }
 
-        public async Task<Feature> GetPointOfInterestById(string id, string source)
+        public async Task<List<Feature>> GetPointsOfInterestUpdates(DateTime lastModifiedDate)
         {
-            var response = await _elasticClient.SearchAsync<Feature>(
-                s => s.Index(OSM_POIS_ALIAS)
-                    .Size(1).Query(
-                        q => q.Term(t => t.Field($"{PROPERTIES}.{FeatureAttributes.POI_SOURCE}").Value(source.ToLower()))
-                             && q.Term(t => t.Field($"{PROPERTIES}.{FeatureAttributes.ID}").Value(id))
-                    )
-            );
-            return response.Documents.FirstOrDefault();
+            var list = new List<Feature>();
+            var categories = Categories.Points.Concat(Categories.Routes).Select(c => c.ToLower()).ToArray();
+            var response = await _elasticClient.SearchAsync<Feature>(s => s.Index(OSM_POIS_ALIAS)
+                    .Size(10000)
+                    .Scroll("10s")
+                    .Query(q => q.DateRange(t => t.Field($"{PROPERTIES}.{FeatureAttributes.POI_LAST_MODIFIED}").GreaterThan(lastModifiedDate))
+                        && q.Terms(t => t.Field($"{PROPERTIES}.{FeatureAttributes.POI_CATEGORY}").Terms(categories))
+                    ));
+            return GetAllItemsByScrolling(response);
         }
 
-        public Task DeleteOsmPointOfInterestById(string id)
+        public async Task<Feature> GetPointOfInterestById(string id, string source)
         {
-            var fullId = GeoJsonExtensions.GetId(Sources.OSM, id);
-            return _elasticClient.DeleteAsync<Feature>(fullId, d => d.Index(OSM_POIS_ALIAS));
+            var fullId = GeoJsonExtensions.GetId(source, id);
+            var response = await _elasticClient.GetAsync<Feature>(fullId, r => r.Index(OSM_POIS_ALIAS));
+            return response.Source;
+        }
+
+        public async Task DeleteOsmPointOfInterestById(string id, DateTime? timeStamp)
+        {
+            var feature = await GetPointOfInterestById(id, Sources.OSM);
+            if (feature != null)
+            {
+                feature.Attributes.AddOrUpdate(FeatureAttributes.POI_DELETED, true);
+                feature.Attributes.AddOrUpdate(FeatureAttributes.POI_LAST_MODIFIED, (timeStamp ?? DateTime.Now).ToString("o"));
+                await UpdatePointsOfInterestData(new List<Feature> { feature });
+            }
         }
 
         public Task DeletePointOfInterestById(string id, string source)
@@ -371,14 +478,7 @@ namespace IsraelHiking.DataAccess
                         q.Term(t => t.Field($"{PROPERTIES}.{FeatureAttributes.POI_SOURCE}").Value(source.ToLower()))
                     )
             );
-            var features = response.Documents.ToList();
-            var results = _elasticClient.Scroll<Feature>("10s", response.ScrollId);
-            features.AddRange(results.Documents.ToList());
-            while (results.Documents.Any())
-            {
-                results = _elasticClient.Scroll<Feature>("10s", results.ScrollId);
-                features.AddRange(results.Documents.ToList());
-            }
+            var features = GetAllItemsByScrolling(response);
             _logger.LogInformation($"Got {features.Count} features for source {source}");
             return features;
         }
@@ -389,13 +489,13 @@ namespace IsraelHiking.DataAccess
             return response.Source;
         }
 
-        public async Task AddExternalPoi(Feature feature)
+        public async Task AddExternalPois(List<Feature> features)
         {
             if (_elasticClient.IndexExists(EXTERNAL_POIS).Exists == false)
             {
                 await CreateExternalPoisIndex();
             }
-            await _elasticClient.IndexAsync(feature, r => r.Index(EXTERNAL_POIS).Id(feature.GetId()));
+            await UpdateData(features, EXTERNAL_POIS);
         }
 
         public Task DeleteExternalPoisBySource(string source)
@@ -471,8 +571,8 @@ namespace IsraelHiking.DataAccess
                     ms.Map<ImageItem>(m =>
                         m.Properties(p =>
                             p.Keyword(k => k.Name(ii => ii.Hash))
-                             .Keyword(s => s.Name(n => n.ImageUrl))
-                             .Binary(a => a.Name(i => i.Data))
+                             .Keyword(s => s.Name(n => n.ImageUrls))
+                             .Binary(a => a.Name(i => i.Thumbnail))
                         )
                     )
                 )
@@ -611,7 +711,7 @@ namespace IsraelHiking.DataAccess
         {
             var response = await _elasticClient.SearchAsync<ImageItem>(s =>
                 s.Index(IMAGES)
-                .Query(q => q.Match(m => m.Field(i => i.ImageUrl).Query(url)))
+                .Query(q => q.Match(m => m.Field(i => i.ImageUrls).Query(url)))
             );
             return response.Documents.FirstOrDefault();
         }
@@ -623,25 +723,17 @@ namespace IsraelHiking.DataAccess
         }
         public async Task<List<string>> GetAllUrls()
         {
-            var list = new List<string>();
             _elasticClient.Refresh(IMAGES);
             var response = await _elasticClient.SearchAsync<ImageItem>(
                 s => s.Index(IMAGES)
                     .Size(10000)
                     .Scroll("10s")
                     .Source(sf => sf
-                    .Includes(i => i.Fields(f => f.ImageUrl, f => f.Hash))
+                    .Includes(i => i.Fields(f => f.ImageUrls, f => f.Hash))
                 ).Query(q => q.MatchAll())
             );
-            list.AddRange(response.Documents.Select(i => i.ImageUrl).ToList());
-            var results = _elasticClient.Scroll<ImageItem>("10s", response.ScrollId);
-            list.AddRange(results.Documents.Select(i => i.ImageUrl).ToList());
-            while (results.Documents.Any())
-            {
-                results = _elasticClient.Scroll<ImageItem>("10s", results.ScrollId);
-                list.AddRange(results.Documents.Select(i => i.ImageUrl).ToList());
-            }
-            return list;
+            var list = GetAllItemsByScrolling(response);
+            return list.SelectMany(i => i.ImageUrls).ToList();
         }
 
         public Task StoreImage(ImageItem imageItem)
@@ -658,5 +750,24 @@ namespace IsraelHiking.DataAccess
             }
         }
 
+        public Task StoreRebuildContext(RebuildContext context)
+        {
+            return _elasticClient.IndexAsync(context, r => r.Index(REBUILD_LOG).Id(context.StartTime.ToString("o")));
+        }
+
+        public async Task<DateTime> GetLastSuccessfulRebuildTime()
+        {
+            const string MAX_DATE = "max_date";
+            var response = await _elasticClient.SearchAsync<RebuildContext>(s => s.Index(REBUILD_LOG)
+                    .Size(1)
+                    .Query(q => q.Term(t => t.Field(r => r.Succeeded).Value(true)))
+                    .Aggregations(a => a.Max(MAX_DATE, m => m.Field(r => r.StartTime)))
+                    );
+            if (DateTime.TryParse(response.Aggs.Max(MAX_DATE).ValueAsString, out var date))
+            {
+                return date;
+            }
+            return DateTime.MinValue;
+        }
     }
 }

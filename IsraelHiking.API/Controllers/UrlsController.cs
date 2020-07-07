@@ -1,7 +1,10 @@
 ﻿using IsraelHiking.API.Converters;
 using IsraelHiking.API.Services;
 using IsraelHiking.Common;
+using IsraelHiking.Common.Api;
+using IsraelHiking.Common.DataContainer;
 using IsraelHiking.DataAccessInterfaces;
+using IsraelHiking.DataAccessInterfaces.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -21,7 +24,7 @@ namespace IsraelHiking.API.Controllers
     [Route("api/[controller]")]
     public class UrlsController : ControllerBase
     {
-        private readonly IRepository _repository;
+        private readonly IShareUrlsRepository _repository;
         private readonly IDataContainerConverterService _dataContainerConverterService;
         private readonly IBase64ImageStringToFileConverter _base64ImageConverter;
         private readonly IImgurGateway _imgurGateway;
@@ -35,7 +38,7 @@ namespace IsraelHiking.API.Controllers
         /// <param name="base64ImageConverter"></param>
         /// <param name="imgurGateway"></param>
         /// <param name="logger"></param>
-        public UrlsController(IRepository repository,
+        public UrlsController(IShareUrlsRepository repository,
             IDataContainerConverterService dataContainerConverterService,
             IBase64ImageStringToFileConverter base64ImageConverter,
             IImgurGateway imgurGateway,
@@ -52,7 +55,7 @@ namespace IsraelHiking.API.Controllers
         /// Returns the data relevant to a given shared route
         /// </summary>
         /// <param name="id">The shared route ID</param>
-        /// <param name="format">The format to convert to, default is <see cref="DataContainer"/>, but you can use "gpx", "csv" and all other formats that can be opened in this site</param>
+        /// <param name="format">The format to convert to, default is <see cref="DataContainerPoco"/>, but you can use "gpx", "csv" and all other formats that can be opened in this site</param>
         /// <returns>The shared route in the requested format</returns>
         // GET api/Urls/abc?format=gpx
         [HttpGet]
@@ -158,17 +161,15 @@ namespace IsraelHiking.API.Controllers
 
         private async Task UploadToImgurAndUpdateLink(RemoteFileFetcherGatewayResponse file, LinkData link)
         {
-            using (var memoryStream = new MemoryStream(file.Content))
+            using var memoryStream = new MemoryStream(file.Content);
+            try
             {
-                try
-                {
-                    var newUrl = await _imgurGateway.UploadImage(memoryStream);
-                    link.Url = newUrl;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError($"Failed uploading image: {ex.Message}");
-                }
+                var newUrl = await _imgurGateway.UploadImage(memoryStream);
+                link.Url = newUrl;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Failed uploading image: {ex.Message}");
             }
         }
 

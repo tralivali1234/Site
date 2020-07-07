@@ -4,9 +4,9 @@ using IsraelHiking.DataAccessInterfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using NetTopologySuite.Features;
-using NetTopologySuite.Geometries;
 using NSubstitute;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace IsraelHiking.API.Tests.Services.Poi
 {
@@ -21,16 +21,17 @@ namespace IsraelHiking.API.Tests.Services.Poi
         {
             InitializeSubstitues();
             _nakebGateway = Substitute.For<INakebGateway>();
-            _adapter = new NakebPointsOfInterestAdapter(_nakebGateway, _dataContainerConverterService, Substitute.For<ILogger>());
+            _adapter = new NakebPointsOfInterestAdapter(_nakebGateway, Substitute.For<ILogger>());
         }
 
         [TestMethod]
-        public void GetPointsForIndexing_ShouldGetAllPointsFromGateway()
+        public void GetAll_ShouldGetAllPointsFromGateway()
         {
-            var featuresList = new List<Feature> { new Feature(null, null)};
+            var featuresList = new List<Feature> { new Feature(null, new AttributesTable { { FeatureAttributes.ID, "42" } })};
             _nakebGateway.GetAll().Returns(featuresList);
+            _nakebGateway.GetById(Arg.Any<string>()).Returns(featuresList.First());
 
-            var points = _adapter.GetPointsForIndexing().Result;
+            var points = _adapter.GetAll().Result;
 
             Assert.AreEqual(featuresList.Count, points.Count);
         }

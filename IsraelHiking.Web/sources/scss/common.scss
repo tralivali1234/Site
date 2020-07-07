@@ -140,6 +140,11 @@ ngx-image-gallery .image {
     max-width: 100%;
 }
 
+.img-responsive-full {
+    width: 100%;
+    object-fit: contain;
+}
+
 .img-center {
     position: absolute;
     left: 50%;

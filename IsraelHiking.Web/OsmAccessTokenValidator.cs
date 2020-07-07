@@ -1,13 +1,14 @@
-﻿using System.Linq;
-using System.Security.Claims;
-using IsraelHiking.API.Services;
+﻿using IsraelHiking.API.Services;
 using IsraelHiking.Common;
+using IsraelHiking.Common.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using OsmSharp.IO.API;
 using System;
 using System.IdentityModel.Tokens.Jwt;
-using OsmSharp.IO.API;
-using Microsoft.Extensions.Options;
+using System.Linq;
+using System.Security.Claims;
 
 namespace IsraelHiking.Web
 {
@@ -15,12 +16,12 @@ namespace IsraelHiking.Web
     {
         private readonly ILogger _logger;
         private readonly IClientsFactory _clientsFactory;
-        private readonly LruCache<string, TokenAndSecret> _cache;
+        private readonly UsersIdAndTokensCache _cache;
         private readonly ConfigurationData _options;
 
         public OsmAccessTokenValidator(IClientsFactory clientsFactory,
             IOptions<ConfigurationData> options,
-            LruCache<string, TokenAndSecret> cache,
+            UsersIdAndTokensCache cache,
             ILogger logger)
         {
             _clientsFactory = clientsFactory;

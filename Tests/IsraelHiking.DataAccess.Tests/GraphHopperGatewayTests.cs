@@ -1,4 +1,5 @@
-﻿using IsraelHiking.Common;
+﻿using IsraelHiking.Common.Api;
+using IsraelHiking.Common.Configuration;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using NetTopologySuite.Geometries;
@@ -26,9 +27,8 @@ namespace IsraelHiking.DataAccess.Tests
                 Profile = ProfileType.Foot
             }).Result;
             Assert.IsNotNull(results);
-            var details = results.Attributes["details"] as JsonDetails;
+            var details = results.Attributes["details"];
             Assert.IsNotNull(details);
-            Assert.IsTrue(details.road_class.Count > 0);
         }
     }
 }

@@ -6,7 +6,6 @@ using IsraelHiking.API.Executors;
 using IsraelHiking.API.Services;
 using IsraelHiking.API.Services.Osm;
 using IsraelHiking.API.Services.Poi;
-using IsraelHiking.Common;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IsraelHiking.API
@@ -35,7 +34,7 @@ namespace IsraelHiking.API
             services.AddTransient<IOsmGeoJsonPreprocessorExecutor, OsmGeoJsonPreprocessorExecutor>();
             services.AddTransient<IOsmLatestFileFetcherExecutor, OsmLatestFileFetcherExecutor>();
             services.AddTransient<IFeaturesMergeExecutor, FeaturesMergeExecutor>();
-            services.AddSingleton<LruCache<string, TokenAndSecret>>();
+            services.AddSingleton<UsersIdAndTokensCache>();
             services.AddTransient<IImageCreationService, ImageCreationService>();
             services.AddTransient<IOsmLineAdderService, OsmLineAdderService>();
             services.AddTransient<ITagsHelper, TagsHelper>();
@@ -43,9 +42,10 @@ namespace IsraelHiking.API
             services.AddTransient<IPointsOfInterestFilesCreatorExecutor, PointsOfInterestFilesCreatorExecutor>();
             services.AddTransient<IOfflineFilesService, OfflineFilesService>();
             services.AddTransient<IImagesUrlsStorageExecutor, ImagesUrlsStorageExecutor>();
+            services.AddTransient<IExternalSourceUpdaterExecutor, ExternalSourceUpdaterExecutor>();
+            services.AddTransient<ISimplePointAdderExecutor, SimplePointAdderExecutor>();
 
             // registration here is what determines the order of which to merge points:
-            services.AddTransient<IPointsOfInterestAdapter, OsmPointsOfInterestAdapter>();
             services.AddTransient<IPointsOfInterestAdapter, NakebPointsOfInterestAdapter>();
             services.AddTransient<IPointsOfInterestAdapter, INaturePointsOfInterestAdapter>();
             services.AddTransient<IPointsOfInterestAdapter, WikipediaPointsOfInterestAdapter>();

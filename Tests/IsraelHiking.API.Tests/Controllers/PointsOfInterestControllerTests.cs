@@ -4,9 +4,11 @@ using IsraelHiking.API.Executors;
 using IsraelHiking.API.Services;
 using IsraelHiking.API.Services.Poi;
 using IsraelHiking.Common;
+using IsraelHiking.Common.Configuration;
 using IsraelHiking.Common.Poi;
 using IsraelHiking.DataAccessInterfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -29,7 +31,7 @@ namespace IsraelHiking.API.Tests.Controllers
         private ITagsHelper _tagHelper;
         private IPointsOfInterestProvider _pointsOfInterestProvider;
         private IImagesUrlsStorageExecutor _imagesUrlsStorageExecutor;
-        private LruCache<string, TokenAndSecret> _cache;
+        private UsersIdAndTokensCache _cache;
 
         [TestInitialize]
         public void TestInitialize()
@@ -41,7 +43,7 @@ namespace IsraelHiking.API.Tests.Controllers
             _imagesUrlsStorageExecutor = Substitute.For<IImagesUrlsStorageExecutor>();
             var optionsProvider = Substitute.For<IOptions<ConfigurationData>>();
             optionsProvider.Value.Returns(new ConfigurationData());
-            _cache = new LruCache<string, TokenAndSecret>(optionsProvider, Substitute.For<ILogger>());
+            _cache = new UsersIdAndTokensCache(optionsProvider, Substitute.For<ILogger>(), new MemoryCache(new MemoryCacheOptions()));
             var factory = Substitute.For<IClientsFactory>();
             factory.CreateOAuthClient(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>()).Returns(_osmGateway);
             _controller = new PointsOfInterestController(factory, 
@@ -49,7 +51,9 @@ namespace IsraelHiking.API.Tests.Controllers
                 _wikimediaCommonGateway, 
                 _pointsOfInterestProvider, 
                 new Base64ImageStringToFileConverter(), 
-                _imagesUrlsStorageExecutor, 
+                _imagesUrlsStorageExecutor,
+                Substitute.For<ISimplePointAdderExecutor>(),
+                Substitute.For<ILogger>(),
                 optionsProvider, 
                 _cache);
         }
@@ -59,9 +63,9 @@ namespace IsraelHiking.API.Tests.Controllers
         {
             var category = "category";
 
-            _controller.GetCategoriesByType(category);
+            _controller.GetCategoriesByGroup(category);
 
-            _tagHelper.Received(1).GetCategoriesByType(category);
+            _tagHelper.Received(1).GetCategoriesByGroup(category);
         }
 
         [TestMethod]
@@ -139,7 +143,7 @@ namespace IsraelHiking.API.Tests.Controllers
             var result = _controller.UploadPointOfInterest(poi, "he").Result as OkObjectResult;
 
             Assert.IsNotNull(result);
-            _pointsOfInterestProvider.Received(1).AddPointOfInterest(Arg.Any<PointOfInterestExtended>(), Arg.Any<TokenAndSecret>(), Arg.Any<string>());
+            _pointsOfInterestProvider.Received(1).AddPointOfInterest(Arg.Any<PointOfInterestExtended>(), _osmGateway, Arg.Any<string>());
         }
 
         [TestMethod]
@@ -151,7 +155,7 @@ namespace IsraelHiking.API.Tests.Controllers
             var result = _controller.UploadPointOfInterest(poi, "he").Result as OkObjectResult;
 
             Assert.IsNotNull(result);
-            _pointsOfInterestProvider.Received(1).UpdatePointOfInterest(Arg.Any<PointOfInterestExtended>(), Arg.Any<TokenAndSecret>(), Arg.Any<string>());
+            _pointsOfInterestProvider.Received(1).UpdatePointOfInterest(Arg.Any<PointOfInterestExtended>(), _osmGateway, Arg.Any<string>());
         }
 
         [TestMethod]

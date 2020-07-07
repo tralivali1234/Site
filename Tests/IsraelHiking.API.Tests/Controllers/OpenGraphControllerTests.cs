@@ -1,6 +1,6 @@
 ﻿using IsraelHiking.API.Controllers;
 using IsraelHiking.Common;
-using IsraelHiking.DataAccessInterfaces;
+using IsraelHiking.DataAccessInterfaces.Repositories;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -12,14 +12,14 @@ namespace IsraelHiking.API.Tests.Controllers
     public class OpenGraphControllerTests
     {
         private OpenGraphController _controller;
-        private IRepository _repository;
+        private IShareUrlsRepository _repository;
 
         [TestInitialize]
         public void TestInitiazlie()
         {
             var urlHelper = Substitute.For<IUrlHelper>();
             urlHelper.Content(Arg.Any<string>()).Returns(x => x[0]);
-            _repository = Substitute.For<IRepository>();
+            _repository = Substitute.For<IShareUrlsRepository>();
             _controller = new OpenGraphController(_repository, Substitute.For<ILogger>()) { Url = urlHelper };
         }
 

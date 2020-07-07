@@ -1,15 +1,17 @@
-﻿using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using IsraelHiking.API.Services;
+﻿using IsraelHiking.API.Services;
 using IsraelHiking.Common;
+using IsraelHiking.Common.Api;
+using IsraelHiking.Common.Configuration;
+using IsraelHiking.Common.DataContainer;
 using IsraelHiking.DataAccessInterfaces;
+using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using NSubstitute;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 
 namespace IsraelHiking.API.Tests.Services
 {
@@ -25,7 +27,7 @@ namespace IsraelHiking.API.Tests.Services
             _remoteFileFetcherGateway = Substitute.For<IRemoteFileFetcherGateway>();
             var options = Substitute.For<IOptions<ConfigurationData>>();
             options.Value.Returns(new ConfigurationData());
-            _imageCreationService = new ImageCreationService(_remoteFileFetcherGateway, options, Substitute.For<ILogger>());
+            _imageCreationService = new ImageCreationService(_remoteFileFetcherGateway, options);
             SetupRemoteFileFetcherWithBlankTile();
         }
 
@@ -42,9 +44,9 @@ namespace IsraelHiking.API.Tests.Services
                 });
         }
 
-        private DataContainer GetDataContainer(List<LatLngTime> latLngs)
+        private DataContainerPoco GetDataContainer(List<LatLngTime> latLngs)
         {
-            return new DataContainer
+            return new DataContainerPoco
             {
                 BaseLayer = new LayerData(),
                 Routes = new List<RouteData>
@@ -213,7 +215,7 @@ namespace IsraelHiking.API.Tests.Services
         [TestMethod]
         public void LocalTiles_RouteWithNoPoints_ShouldReturnBackgroungImageFromBounds()
         {
-            var dataContainer = new DataContainer
+            var dataContainer = new DataContainerPoco
             {
                 NorthEast = new LatLng { Lat = 0.15, Lng = 0.15 },
                 SouthWest = new LatLng { Lat = 0.1, Lng = 0.1 },
@@ -230,7 +232,7 @@ namespace IsraelHiking.API.Tests.Services
         [TestMethod]
         public void LocalTiles_RouteColorAndOpacity_ShouldDrawAccordingly()
         {
-            var dataContainer = new DataContainer
+            var dataContainer = new DataContainerPoco
             {
                 BaseLayer = new LayerData { Address = "/Tiles/{z}/{x}/{y}.png" },
                 Overlays = new List<LayerData>

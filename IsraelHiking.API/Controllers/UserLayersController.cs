@@ -1,5 +1,5 @@
 ﻿using IsraelHiking.Common;
-using IsraelHiking.DataAccessInterfaces;
+using IsraelHiking.DataAccessInterfaces.Repositories;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
@@ -15,13 +15,13 @@ namespace IsraelHiking.API.Controllers
     [Route("api/[controller]")]
     public class UserLayersController : ControllerBase
     {
-        private readonly IRepository _repository;
+        private readonly IUserLayersRepository _repository;
 
         /// <summary>
         /// Controller's constructor
         /// </summary>
         /// <param name="repository"></param>
-        public UserLayersController(IRepository repository)
+        public UserLayersController(IUserLayersRepository repository)
         {
             _repository = repository;
         }

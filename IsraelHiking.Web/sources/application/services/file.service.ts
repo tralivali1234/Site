@@ -1,7 +1,7 @@
 import { Injectable } from "@angular/core";
-import { HttpClient } from "@angular/common/http";
+import { HttpClient, HttpEventType } from "@angular/common/http";
 import { Style } from "mapbox-gl";
-import { File as FileSystemWrapper } from "@ionic-native/file/ngx";
+import { File as FileSystemWrapper, FileEntry } from "@ionic-native/file/ngx";
 import { WebView } from "@ionic-native/ionic-webview/ngx";
 import { last } from "lodash";
 import JSZip from "jszip";
@@ -75,13 +75,17 @@ export class FileService {
     }
 
     private async createIHMDirectoryIfNeeded(): Promise<string> {
-        if (this.runningContextService.isCordova) {
-            let folder = this.runningContextService.isIos
-                ? this.fileSystemWrapper.documentsDirectory
-                : this.fileSystemWrapper.externalRootDirectory;
-            await this.fileSystemWrapper.createDir(folder, "IsraelHikingMap", true);
-            return `${folder}/IsraelHikingMap`;
-        }
+        let folder = this.runningContextService.isIos
+            ? this.fileSystemWrapper.documentsDirectory
+            : this.fileSystemWrapper.externalRootDirectory;
+        await this.fileSystemWrapper.createDir(folder, "IsraelHikingMap", true);
+        return `${folder}/IsraelHikingMap`;
+    }
+
+    private async createIHMReportsDirectoryIfNeeded(): Promise<string> {
+        let ihmFolder = await this.createIHMDirectoryIfNeeded();
+        await this.fileSystemWrapper.createDir(ihmFolder, "Reports", true);
+        return `${ihmFolder}/Reports`;
     }
 
     public getFileFromEvent(e: any): File {
@@ -143,7 +147,7 @@ export class FileService {
         return await this.saveBytesResponseToFile(responseData, fileName);
     }
 
-    public async addRoutesFromFile(file: File): Promise<any> {
+    public async addRoutesFromFile(file: File): Promise<void> {
         if (file.type === ImageResizeService.JPEG) {
             let container = await this.imageResizeService.resizeImageAndConvert(file);
             if (container.routes.length === 0 || container.routes[0].markers.length === 0) {
@@ -248,7 +252,7 @@ export class FileService {
         try {
             let blob = this.nonAngularObjectsFactory.b64ToBlob(data, "application/zip");
             let fullFileName = "Report_" + new Date().toISOString().split(":").join("-").replace("T", "_").replace("Z", "_") + ".zip";
-            let path = await this.createIHMDirectoryIfNeeded();
+            let path = await this.createIHMReportsDirectoryIfNeeded();
             await this.fileSystemWrapper.writeFile(path, fullFileName, blob);
         } catch {
             // no need to do anything
@@ -261,5 +265,55 @@ export class FileService {
             ? this.fileSystemWrapper.documentsDirectory
             : this.fileSystemWrapper.applicationStorageDirectory + "/databases";
         await this.fileSystemWrapper.writeFile(path, fileName, blob, { append: false, replace: true, truncate: 0 });
+    }
+
+    public async getLocalFileUrl(relativePath: string): Promise<string> {
+        let fileEntry = await this.fileSystemWrapper
+            .resolveLocalFilesystemUrl(this.fileSystemWrapper.applicationDirectory + "www/" + relativePath) as FileEntry;
+        return await new Promise((resolve, reject) => {
+            fileEntry.file((file) => {
+                resolve(file.localURL);
+            }, reject);
+        });
+    }
+
+    public async getCachedFile(fileName: string): Promise<string> {
+        try {
+            return await this.fileSystemWrapper.readAsText(this.fileSystemWrapper.cacheDirectory, fileName);
+        } catch (ex) {
+            this.loggingService.warning("Unable to get file from cache: " + ex.message);
+            return null;
+        }
+    }
+
+    public storeFileToCache(fileName: string, content: string) {
+        return this.fileSystemWrapper.writeFile(this.fileSystemWrapper.cacheDirectory, fileName, content,
+            { replace: true, append: false, truncate: 0 });
+    }
+
+    /**
+     * Downloads a file while reporting progress
+     * @param url The url of the file
+     * @param progressCallback reports progress between 0 and 1
+     */
+    public async getFileContentWithProgress(url: string, progressCallback: (value: number) => void): Promise<Blob> {
+        return new Promise((resolve, reject) => {
+            this.httpClient.get(url, {
+                observe: "events",
+                responseType: "blob",
+                reportProgress: true
+            }).subscribe(event => {
+                if (event.type === HttpEventType.DownloadProgress) {
+                    progressCallback(event.loaded / event.total);
+                }
+                if (event.type === HttpEventType.Response) {
+                    if (event.ok) {
+                        resolve(event.body);
+                    } else {
+                        reject(new Error(event.statusText));
+                    }
+                }
+            }, error => reject(error));
+        });
     }
 }

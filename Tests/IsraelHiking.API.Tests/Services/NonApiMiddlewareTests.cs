@@ -1,8 +1,9 @@
 ﻿using IsraelHiking.API.Services;
 using IsraelHiking.API.Services.Poi;
 using IsraelHiking.Common;
+using IsraelHiking.Common.Configuration;
 using IsraelHiking.Common.Poi;
-using IsraelHiking.DataAccessInterfaces;
+using IsraelHiking.DataAccessInterfaces.Repositories;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
@@ -21,7 +22,7 @@ namespace IsraelHiking.API.Tests.Services
         private NonApiMiddleware _middleware;
         private IWebHostEnvironment _hostingEnvironment;
         private IServiceProvider _serviceProvider;
-        private IRepository _repository;
+        private IShareUrlsRepository _repository;
         private IPointsOfInterestProvider _pointsOfInterestProvider;
 
         [TestInitialize]
@@ -29,7 +30,7 @@ namespace IsraelHiking.API.Tests.Services
         {
             _hostingEnvironment = Substitute.For<IWebHostEnvironment>();
             _serviceProvider = Substitute.For<IServiceProvider>();
-            _repository = Substitute.For<IRepository>();
+            _repository = Substitute.For<IShareUrlsRepository>();
             _pointsOfInterestProvider = Substitute.For<IPointsOfInterestProvider>();
             var config = new ConfigurationData();
             var options = Substitute.For<IOptions<ConfigurationData>>();

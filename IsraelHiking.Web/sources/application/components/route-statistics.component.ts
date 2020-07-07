@@ -2,7 +2,8 @@ import { Component, ViewEncapsulation, OnInit, OnDestroy, ViewChild, ElementRef,
 import { trigger, style, transition, animate } from "@angular/animations";
 import { Subscription, Observable, interval } from "rxjs";
 import { NgxD3Service, Selection, BaseType, ScaleContinuousNumeric } from "@katze/ngx-d3";
-import { select } from "@angular-redux/store";
+import { select, NgRedux } from "@angular-redux/store";
+import { regressionLoess } from "d3-regression";
 
 import { SelectedRouteService } from "../services/layers/routelayers/selected-route.service";
 import { ResourcesService } from "../services/resources.service";
@@ -12,6 +13,7 @@ import { CancelableTimeoutService } from "../services/cancelable-timeout.service
 import { SidebarService } from "../services/sidebar.service";
 import { SpatialService } from "../services/spatial.service";
 import { GeoLocationService } from "../services/geo-location.service";
+import { AudioPlayerFactory, IAudioPlayer } from "../services/audio-player.factory";
 import { LatLngAlt, RouteData, ApplicationState } from "../models/models";
 
 declare type DragState = "start" | "drag" | "none";
@@ -37,6 +39,7 @@ interface IChartElements {
     locationGroup: Selection<BaseType, {}, null, undefined>;
     xScale: ScaleContinuousNumeric<number, number>;
     yScale: ScaleContinuousNumeric<number, number>;
+    yScaleSlope: ScaleContinuousNumeric<number, number>;
     margin: IMargin;
     width: number;
     height: number;
@@ -78,6 +81,7 @@ export class RouteStatisticsComponent extends BaseMapComponent implements OnInit
     public remainingDistance: number;
     public ETA: string;
     public isKmMarkersOn: boolean;
+    public isSlopeOn: boolean;
     public isExpanded: boolean;
     public isTable: boolean;
     public isVisible: boolean;
@@ -103,6 +107,7 @@ export class RouteStatisticsComponent extends BaseMapComponent implements OnInit
     private componentSubscriptions: Subscription[];
     private zoom: number;
     private routeColor: string;
+    private audioPlayer: IAudioPlayer;
 
     constructor(resources: ResourcesService,
                 private readonly changeDetectorRef: ChangeDetectorRef,
@@ -111,10 +116,13 @@ export class RouteStatisticsComponent extends BaseMapComponent implements OnInit
                 private readonly routeStatisticsService: RouteStatisticsService,
                 private readonly cancelableTimeoutService: CancelableTimeoutService,
                 private readonly sidebarService: SidebarService,
-                private readonly geoLocationService: GeoLocationService
+                private readonly geoLocationService: GeoLocationService,
+                private readonly audioPlayerFactory: AudioPlayerFactory,
+                private readonly ngRedux: NgRedux<ApplicationState>
     ) {
         super(resources);
         this.isKmMarkersOn = false;
+        this.isSlopeOn = false;
         this.isExpanded = false;
         this.isVisible = false;
         this.isTable = false;
@@ -212,7 +220,7 @@ export class RouteStatisticsComponent extends BaseMapComponent implements OnInit
         return str;
     }
 
-    public ngOnInit() {
+    public async ngOnInit() {
         this.componentSubscriptions.push(this.routes$.subscribe(() => {
             this.routeChanged();
         }));
@@ -232,6 +240,7 @@ export class RouteStatisticsComponent extends BaseMapComponent implements OnInit
                 this.updateDurationString((new Date().getTime() - recordingRoute.segments[0].latlngs[0].timestamp.getTime()) / 1000);
             }
         }));
+        this.audioPlayer = await this.audioPlayerFactory.create("content/uh-oh.mp3");
     }
 
     public ngOnDestroy() {
@@ -300,7 +309,7 @@ export class RouteStatisticsComponent extends BaseMapComponent implements OnInit
         if (this.isVisible) {
             this.clearSubRouteSelection();
             this.setRouteColorToChart();
-            this.setDataToChart(this.statistics.points.map(p => p.coordinate));
+            this.setDataToChart(this.getDataFromStatistics());
             this.refreshLocationGroup();
         }
         this.updateKmMarkers();
@@ -317,9 +326,6 @@ export class RouteStatisticsComponent extends BaseMapComponent implements OnInit
 
         this.routeColor = "black";
         this.updateStatistics();
-        let data = this.statistics != null ?
-            this.statistics.points.map(p => p.coordinate)
-            : [];
         this.initChart();
         this.createChartAxis();
         this.addChartPath();
@@ -329,7 +335,7 @@ export class RouteStatisticsComponent extends BaseMapComponent implements OnInit
         this.addEventsSupport();
         // must be last
         this.setRouteColorToChart();
-        this.setDataToChart(data);
+        this.setDataToChart(this.getDataFromStatistics());
         this.refreshLocationGroup();
         this.updateSubRouteSelectionOnChart();
     }
@@ -427,6 +433,7 @@ export class RouteStatisticsComponent extends BaseMapComponent implements OnInit
 
     private initChart() {
         let d3 = this.d3Service.getD3();
+        this.chartElements.margin.right = this.isSlopeOn ? 30 : 10;
         this.chartElements.svg = d3.select(this.lineChartContainer.nativeElement).select("svg");
         this.chartElements.svg.html("");
         let windowStyle = window.getComputedStyle(this.lineChartContainer.nativeElement);
@@ -441,13 +448,14 @@ export class RouteStatisticsComponent extends BaseMapComponent implements OnInit
             .attr("transform", `translate(${this.chartElements.margin.left},${this.chartElements.margin.top})`);
         this.chartElements.xScale = d3.scaleLinear().range([0, this.chartElements.width]);
         this.chartElements.yScale = d3.scaleLinear().range([this.chartElements.height, 0]);
+        this.chartElements.yScaleSlope = d3.scaleLinear().range([this.chartElements.height, 0]);
         this.chartElements.dragState = "none";
     }
 
     private createChartAxis() {
         let d3 = this.d3Service.getD3();
         this.chartElements.chartArea.append("g")
-            .attr("class", "x axis")
+            .attr("class", "x-axis")
             .attr("transform", `translate(0,${this.chartElements.height})`)
             .call(d3.axisBottom(this.chartElements.xScale).ticks(5))
             .append("text")
@@ -460,7 +468,7 @@ export class RouteStatisticsComponent extends BaseMapComponent implements OnInit
             .remove();
 
         this.chartElements.chartArea.append("g")
-            .attr("class", "y axis")
+            .attr("class", "y-axis")
             .call(d3.axisLeft(this.chartElements.yScale).ticks(5))
             .append("text")
             .attr("fill", "#000")
@@ -468,6 +476,19 @@ export class RouteStatisticsComponent extends BaseMapComponent implements OnInit
             .attr("text-anchor", "middle")
             .attr("dir", this.resources.direction)
             .text(this.resources.heightInMeters);
+
+        if (this.isSlopeOn) {
+            this.chartElements.chartArea.append("g")
+                .attr("class", "y-axis-slope")
+                .attr("transform", `translate(${this.chartElements.width}, 0)`)
+                .call(d3.axisRight(this.chartElements.yScaleSlope).ticks(5))
+                .append("text")
+                .attr("fill", "#000")
+                .attr("transform", `translate(10, ${this.chartElements.height / 2}) rotate(-90)`)
+                .attr("text-anchor", "middle")
+                .attr("dir", this.resources.direction)
+                .text(this.resources.slope);
+        }
     }
 
     private addChartPath() {
@@ -477,6 +498,25 @@ export class RouteStatisticsComponent extends BaseMapComponent implements OnInit
             .attr("stroke-linejoin", "round")
             .attr("stroke-linecap", "round")
             .attr("stroke-width", 2);
+
+        if (this.isSlopeOn) {
+            this.chartElements.chartArea.append<SVGPathElement>("path")
+                .attr("class", "slope-line")
+                .attr("fill", "none")
+                .attr("stroke-linejoin", "round")
+                .attr("stroke-linecap", "round")
+                .attr("stroke-width", 1)
+                .attr("stroke", "black");
+            this.chartElements.chartArea.append<SVGPathElement>("line")
+                .attr("class", "slope-zero-axis")
+                .attr("stroke-width", 1)
+                .attr("stroke", "grey")
+                .attr("stroke-dasharray", "10,5")
+                .attr("x1", 0)
+                .attr("x2", this.chartElements.width)
+                .attr("y1", this.chartElements.height / 2)
+                .attr("y2", this.chartElements.height / 2);
+        }
     }
 
     private addChartDragGroup() {
@@ -629,25 +669,51 @@ export class RouteStatisticsComponent extends BaseMapComponent implements OnInit
         }
         let d3 = this.d3Service.getD3();
         let duration = 1000;
+        let chartTransition = this.chartElements.chartArea.transition();
         this.chartElements.xScale.domain([d3.min(data, d => d[0]), d3.max(data, d => d[0])]);
         this.chartElements.yScale.domain([d3.min(data, d => d[1]), d3.max(data, d => d[1])]);
         let line = d3.line()
             .curve(d3.curveCatmullRom)
             .x(d => this.chartElements.xScale(d[0]))
             .y(d => this.chartElements.yScale(d[1]));
-        let chartTransition = this.chartElements.chartArea.transition();
         chartTransition.select(".line").duration(duration).attr("d", line(data));
-        chartTransition.select(".x.axis")
+        chartTransition.select(".x-axis")
             .duration(duration)
             .call(d3.axisBottom(this.chartElements.xScale).ticks(5) as any);
-        chartTransition.select(".y.axis")
+        chartTransition.select(".y-axis")
             .call(d3.axisLeft(this.chartElements.yScale).ticks(5) as any)
             .duration(duration);
+        let slopeData = [];
+        if (this.isSlopeOn && data.length > 0) {
+            // smoothing the slope data for the chart
+            slopeData = regressionLoess()
+                .x(d => d.coordinate[0])
+                .y(d => d.slope)
+                .bandwidth(0.03)(this.statistics.points);
+        }
+        // making the doing be symetric around zero
+        this.chartElements.yScaleSlope.domain([Math.min(d3.min(slopeData, d => d[1]), -d3.max(slopeData, d => d[1])),
+        Math.max(d3.max(slopeData, d => d[1]), -d3.min(slopeData, d => d[1]))]);
+        let slopeLine = d3.line()
+            .curve(d3.curveCatmullRom)
+            .x(d => this.chartElements.xScale(d[0]))
+            .y(d => this.chartElements.yScaleSlope(d[1]));
+        chartTransition.select(".slope-line").duration(duration).attr("d", slopeLine(slopeData));
+        chartTransition.select(".y-axis-slope")
+            .call(d3.axisRight(this.chartElements.yScaleSlope).ticks(5) as any)
+            .duration(duration);
+        let zeroAxisY = this.chartElements.yScaleSlope(0) || this.chartElements.height / 2;
+        chartTransition.select(".slope-zero-axis").attr("y1", zeroAxisY).attr("y2", zeroAxisY);
     }
 
     public toggleKmMarker() {
         this.isKmMarkersOn = !this.isKmMarkersOn;
         this.updateKmMarkers();
+    }
+
+    public toggleSlope() {
+        this.isSlopeOn = !this.isSlopeOn;
+        this.redrawChart();
     }
 
     private updateKmMarkers() {
@@ -832,8 +898,8 @@ export class RouteStatisticsComponent extends BaseMapComponent implements OnInit
             closestRouteToGps,
             this.geoLocationService.currentLocation,
             routeIsRecording);
-        this.isFollowing = this.statistics.remainingDistance != null;
         this.routeColor = closestRouteToGps ? closestRouteToGps.color : route.color;
+        this.updateIsFollowing();
         this.setViewStatisticsValues(this.statistics);
     }
 
@@ -841,5 +907,28 @@ export class RouteStatisticsComponent extends BaseMapComponent implements OnInit
         let selectedRoute = this.selectedRouteService.getSelectedRoute();
         let closestRouteToGps = this.selectedRouteService.getClosestRouteToGPS(this.geoLocationService.currentLocation);
         return selectedRoute || closestRouteToGps;
+    }
+
+    private getDataFromStatistics(): [number, number][] {
+        let data = [];
+        if (this.statistics) {
+            data = this.statistics.points.map(p => p.coordinate);
+        }
+        return data;
+    }
+
+    private updateIsFollowing() {
+        let newIsFollowing = this.statistics.remainingDistance != null;
+        if (this.isFollowing === newIsFollowing) {
+            return;
+        }
+        this.isFollowing = newIsFollowing;
+        if (this.ngRedux.getState().configuration.isGotLostWarnings && this.isFollowing === false) {
+            // is following stopped - playing sound and vibration
+            if (navigator.vibrate) {
+                navigator.vibrate([200, 100, 200]);
+            }
+            this.audioPlayer.play();
+        }
     }
 }

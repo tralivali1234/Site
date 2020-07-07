@@ -1,9 +1,10 @@
-﻿using System;
+﻿using IsraelHiking.Common;
+using IsraelHiking.Common.Configuration;
+using Microsoft.Extensions.Options;
+using NetTopologySuite.Features;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using IsraelHiking.Common;
-using NetTopologySuite.Features;
-using Microsoft.Extensions.Options;
 
 namespace IsraelHiking.API.Services
 {
@@ -345,21 +346,14 @@ namespace IsraelHiking.API.Services
         }
 
         ///<inheritdoc/>
-        public IEnumerable<Category> GetCategoriesByType(string categoriesType)
+        public IEnumerable<Category> GetCategoriesByGroup(string categoriesGroup)
         {
-            string[] categories;
-            switch (categoriesType)
+            string[] categories = categoriesGroup switch
             {
-                case Categories.POINTS_OF_INTEREST:
-                    categories = Categories.Points;
-                    break;
-                case Categories.ROUTES:
-                    categories = Categories.Routes;
-                    break;
-                default:
-                    throw new ArgumentException($"categories for the provided categoriesType: {categoriesType}");
-            }
-
+                Categories.POINTS_OF_INTEREST => Categories.Points,
+                Categories.ROUTES => Categories.Routes,
+                _ => throw new ArgumentException($"categories for the provided categoriesType: {categoriesGroup}"),
+            };
             return _categories.Where(c => categories.Contains(c.Name));
         }
 

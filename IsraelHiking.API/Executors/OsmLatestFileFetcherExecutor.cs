@@ -1,12 +1,13 @@
-﻿using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using IsraelHiking.Common;
+﻿using IsraelHiking.Common;
+using IsraelHiking.Common.Configuration;
 using IsraelHiking.DataAccessInterfaces;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace IsraelHiking.API.Executors
 {
@@ -53,22 +54,23 @@ namespace IsraelHiking.API.Executors
         /// <inheritdoc />
         public async Task Update(bool downloadFile = true, bool updateFile = true)
         {
-            _logger.LogInformation("Starting updating to latest OSM file.");
             var workingDirectory = Path.Combine(_options.BinariesFolder, OSM_C_TOOLS_FOLDER);
             var directoryContents = _fileProvider.GetDirectoryContents(OSM_C_TOOLS_FOLDER);
             if (!directoryContents.Any())
             {
                 _fileSystemHelper.CreateDirectory(workingDirectory);
             }
-            if (downloadFile || updateFile)
+            if (downloadFile)
             {
+                _logger.LogInformation("Starting downloading OSM file.");
                 await DownloadDailyOsmFile(workingDirectory);
             }
             if (updateFile)
             {
+                _logger.LogInformation("Starting updating to latest OSM file.");
                 UpdateFileToLatestVersion(workingDirectory);
             }
-            _logger.LogInformation("Finished updating to latest OSM file.");
+            _logger.LogInformation("Finished OSM file manipulation.");
         }
 
         /// <inheritdoc />

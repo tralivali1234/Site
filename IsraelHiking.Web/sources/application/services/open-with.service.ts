@@ -7,6 +7,7 @@ import { FileService } from "./file.service";
 import { NonAngularObjectsFactory } from "./non-angular-objects.factory";
 import { ToastService } from "./toast.service";
 import { ResourcesService } from "./resources.service";
+import { LoggingService } from "./logging.service";
 import { RouteStrings } from "./hash.service";
 import { Urls } from "../urls";
 
@@ -28,13 +29,14 @@ export class OpenWithService {
                 private readonly toastService: ToastService,
                 private readonly matDialog: MatDialog,
                 private readonly router: Router,
+                private readonly loggingService: LoggingService,
                 private readonly ngZone: NgZone) { }
 
     public initialize() {
         if (!this.runningContextService.isCordova || !cordova.openwith || !cordova.openwith.init) {
             return;
         }
-        cordova.openwith.init(() => { }, (error) => console.error(`init failed with error: ${error}`));
+        cordova.openwith.init(() => { }, (error) => this.loggingService.error(`Open with init failed with error: ${error}`));
         cordova.openwith.addHandler((intent) => {
             if (intent.items.length <= 0) {
                 return;
@@ -53,6 +55,7 @@ export class OpenWithService {
     }
 
     private handleExternalUrl(item: Item) {
+        this.loggingService.info("Opening a shared url: " + item.uri);
         if (item.uri.indexOf(RouteStrings.ROUTE_SHARE + "/") !== -1 ||
             item.uri.indexOf(RouteStrings.ROUTE_POI + "/") !== -1 ||
             item.uri.indexOf(RouteStrings.ROUTE_URL + "/") !== -1 ||
@@ -96,33 +99,45 @@ export class OpenWithService {
         let stringValue = atob(data);
         let blob = this.nonAngularObjectsFactory.b64ToBlob(data, item.type) as any;
         if (!item.type || item.type === "application/octet-stream") {
-            blob.name = "file.twl";
-            if (stringValue.startsWith("PK")) {
-                blob.name = "file.kmz";
-            } else if (stringValue.indexOf("<gpx") !== -1) {
-                blob.name = "file.gpx";
-            } else if (stringValue.indexOf("<kml") !== -1) {
-                blob.name = "file.kml";
-            }
+            blob.name = this.getFormatStringValue(stringValue);
         } else if (item.path) {
             blob.name = item.path.split("/").slice(-1)[0];
         } else {
             if (item.type.indexOf("kml") !== -1) {
                 blob.name = "file.kml";
             } else if (item.type.indexOf("kmz") !== -1) {
-                blob.name = "file.kml";
+                blob.name = "file.kmz";
             } else if (item.type.indexOf("gpx") !== -1) {
-                blob.name = "file.kml";
+                blob.name = "file.gpx";
             } else if (item.type.indexOf("twl") !== -1) {
-                blob.name = "file.kml";
+                blob.name = "file.twl";
             } else if (item.type.indexOf("jpg") !== -1 || item.type.indexOf("jpeg") !== -1) {
-                blob.name = "file.kml";
+                blob.name = "file.jpg";
+            } else {
+                blob.name = this.getFormatStringValue(stringValue);
             }
         }
+        if (!blob.name) {
+            this.loggingService.warning("Unable to find file format, defaulting to twl?");
+            blob.name = "file.twl";
+        }
         try {
+            this.loggingService.info("Opening a shared file: " + blob.name + ", " + item.path + ", " + item.type);
+            // Do not use "new File(...)" as it breaks the functionality.
             await this.fileService.addRoutesFromFile(blob);
         } catch (ex) {
             this.toastService.error(this.resources.unableToLoadFromFile);
         }
+    }
+
+    private getFormatStringValue(stringValue: string): string {
+        if (stringValue.startsWith("PK")) {
+            return "file.kmz";
+        } else if (stringValue.toLowerCase().indexOf("<gpx") !== -1) {
+            return "file.gpx";
+        } else if (stringValue.toLowerCase().indexOf("<kml") !== -1) {
+            return "file.kml";
+        }
+        return "";
     }
 }

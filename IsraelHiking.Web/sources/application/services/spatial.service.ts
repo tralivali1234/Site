@@ -57,8 +57,8 @@ export class SpatialService {
         return Math.sqrt(Math.pow(coordinate1[0] - coordinate2[0], 2) + Math.pow(coordinate1[1] - coordinate2[1], 2));
     }
 
-    public static getDistanceFromPointToLine(coordinate: [number, number], coordinates: [number, number][]): number {
-        return pointToLineDistance(coordinate, lineString(coordinates), { units: "meters" });
+    public static getDistanceFromPointToLine(latlng: LatLngAlt, line: LatLngAlt[]): number {
+        return pointToLineDistance(SpatialService.toCoordinate(latlng), SpatialService.getLineString(line), { units: "meters" });
     }
 
     public static getClosestPoint(latlng: LatLngAlt, line: LatLngAlt[]): LatLngAlt {
@@ -151,8 +151,8 @@ export class SpatialService {
         return SpatialService.mBBoundsToBounds(bounds);
     }
 
-    public static getCirclePolygon(centerPoint: LatLngAlt, radius: number): GeoJSON.Feature<GeoJSON.Polygon> {
-        let options = { steps: 64, units: "meters" as Units, properties: {} };
+    public static getCirclePolygonFeature(centerPoint: LatLngAlt, radius: number): GeoJSON.Feature<GeoJSON.Polygon> {
+        let options = { steps: 64, units: "meters" as Units, properties: { radius } };
         return circle(SpatialService.toCoordinate(centerPoint), radius, options);
     }
 }

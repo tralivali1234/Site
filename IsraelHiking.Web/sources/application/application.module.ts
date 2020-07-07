@@ -60,6 +60,7 @@ import { Zip } from "@ionic-native/zip/ngx";
 import { Device } from "@ionic-native/device/ngx";
 import { SQLite } from "@ionic-native/sqlite/ngx";
 import { AppVersion } from "@ionic-native/app-version/ngx";
+import { Media } from "@ionic-native/media/ngx";
 // services
 import { GetTextCatalogService } from "./services/gettext-catalog.service";
 import { AuthorizationService } from "./services/authorization.service";
@@ -81,7 +82,6 @@ import { ToastService } from "./services/toast.service";
 import { ElevationProvider } from "./services/elevation.provider";
 import { SearchResultsProvider } from "./services/search-results.provider";
 import { GeoJsonParser } from "./services/geojson.parser";
-import { CategoriesLayerFactory } from "./services/layers/categories-layers.factory";
 import { DragAndDropService } from "./services/drag-and-drop.service";
 import { PoiService } from "./services/poi.service";
 import { GeoLocationService } from "./services/geo-location.service";
@@ -103,6 +103,9 @@ import { ConnectionService } from "./services/connection.service";
 import { ScreenService } from "./services/screen.service";
 import { PurchaseService } from "./services/purchase.service";
 import { ApplicationInitializeService } from "./services/application-initialize.service";
+import { DeviceOrientationService } from "./services/device-orientation.service";
+import { RecordedRouteService } from "./services/recorded-route.service";
+import { AudioPlayerFactory } from "./services/audio-player.factory";
 import { GlobalErrorHandler } from "./services/global-error.handler";
 // interactions
 import { RouteEditPoiInteraction } from "./components/intercations/route-edit-poi.interaction";
@@ -164,8 +167,11 @@ import { TracesComponent } from "./components/map/traces.component";
 import { AutomaticLayerPresentationComponent } from "./components/map/automatic-layer-presentation.component";
 import { SecuredImageComponent } from "./components/secured-image.component";
 import { ConfigurationDialogComponent } from "./components/dialogs/configuration-dialog.component";
-import { DownloadProgressDialogComponent } from "./components/dialogs/download-progress-dialog.component";
+import { ProgressDialogComponent } from "./components/dialogs/progress-dialog.component";
 import { UseAppDialogComponent } from "./components/dialogs/use-app-dialog.component";
+import { CategoriesGroupComponent } from "./components/sidebar/categories-group.component";
+import { AddSimplePoiDialogComponent } from "./components/dialogs/add-simple-poi-dialog.component";
+
 // variables and functions
 import { routes } from "./routes";
 
@@ -254,8 +260,10 @@ export function getWindow() { return window; }
             PrivatePoiShowDialogComponent,
             AutomaticLayerPresentationComponent,
             ConfigurationDialogComponent,
-            DownloadProgressDialogComponent,
-            UseAppDialogComponent
+            ProgressDialogComponent,
+            UseAppDialogComponent,
+            CategoriesGroupComponent,
+            AddSimplePoiDialogComponent
         ],
         providers: [
             GestureConfig,
@@ -285,7 +293,6 @@ export function getWindow() { return window; }
             ElevationProvider,
             SearchResultsProvider,
             GeoJsonParser,
-            CategoriesLayerFactory,
             DragAndDropService,
             PoiService,
             GeoLocationService,
@@ -307,6 +314,9 @@ export function getWindow() { return window; }
             ScreenService,
             PurchaseService,
             ApplicationInitializeService,
+            DeviceOrientationService,
+            RecordedRouteService,
+            AudioPlayerFactory,
             BackgroundGeolocation,
             Brightness,
             Camera,
@@ -321,6 +331,7 @@ export function getWindow() { return window; }
             Device,
             SQLite,
             AppVersion,
+            Media,
             RouteEditPoiInteraction,
             RouteEditRouteInteraction
         ],
@@ -375,8 +386,10 @@ export function getWindow() { return window; }
             AutomaticLayerPresentationComponent,
             SecuredImageComponent,
             ConfigurationDialogComponent,
-            DownloadProgressDialogComponent,
+            ProgressDialogComponent,
             UseAppDialogComponent,
+            CategoriesGroupComponent,
+            AddSimplePoiDialogComponent,
             NameInUseValidatorDirective,
             ImageCaptureDirective,
             OfflineImagePipe

@@ -1,17 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
-using IsraelHiking.Common;
+﻿using IsraelHiking.Common;
+using IsraelHiking.Common.Configuration;
+using IsraelHiking.Common.DataContainer;
 using IsraelHiking.DataAccessInterfaces;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.Primitives;
 using SixLabors.Shapes;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace IsraelHiking.API.Services
 {
@@ -24,7 +25,7 @@ namespace IsraelHiking.API.Services
         public int Height { get; set; }
         public int Zoom { get; set; }
         public double N { get; set; }
-        public DataContainer DataContainer { get; set; }
+        public DataContainerPoco DataContainer { get; set; }
         public AddressAndOpacity[] AddressesTemplates { get; set; }
     }
 
@@ -51,7 +52,6 @@ namespace IsraelHiking.API.Services
         private const int MAX_ZOOM = 16;
 
         private readonly IRemoteFileFetcherGateway _remoteFileFetcherGateway;
-        private readonly ILogger _logger;
         private readonly Color[] _routeColors;
 
         /// <summary>
@@ -59,16 +59,14 @@ namespace IsraelHiking.API.Services
         /// </summary>
         /// <param name="remoteFileFetcherGateway"></param>
         /// <param name="options"></param>
-        /// <param name="logger"></param>
-        public ImageCreationService(IRemoteFileFetcherGateway remoteFileFetcherGateway, IOptions<ConfigurationData> options, ILogger logger)
+        public ImageCreationService(IRemoteFileFetcherGateway remoteFileFetcherGateway, IOptions<ConfigurationData> options)
         {
             _remoteFileFetcherGateway = remoteFileFetcherGateway;
-            _logger = logger;
             _routeColors = options.Value.Colors.Select(c => FromColorString(c)).ToArray();
         }
 
         ///<inheritdoc />
-        public async Task<byte[]> Create(DataContainer dataContainer, int width, int height)
+        public async Task<byte[]> Create(DataContainerPoco dataContainer, int width, int height)
         {
             var context = new ImageCreationContext
             {
@@ -278,7 +276,7 @@ namespace IsraelHiking.API.Services
                     var points = route.Segments.SelectMany(s => s.Latlngs).Select(l => ConvertLatLngToPoint(l, context)).ToArray();
                     var markerPoints = route.Markers.Select(m => ConvertLatLngToPoint(m.Latlng, context));
                     var lineColor = _routeColors[routeColorIndex++];
-                    routeColorIndex = routeColorIndex % _routeColors.Length;
+                    routeColorIndex %= _routeColors.Length;
                     if (!string.IsNullOrEmpty(route.Color))
                     {
                         lineColor = FromColorString(route.Color, route.Opacity);

@@ -3,7 +3,7 @@ using IsraelHiking.API;
 using IsraelHiking.API.Controllers;
 using IsraelHiking.API.Services;
 using IsraelHiking.API.Swagger;
-using IsraelHiking.Common;
+using IsraelHiking.Common.Configuration;
 using IsraelHiking.Common.Poi;
 using IsraelHiking.DataAccess;
 using IsraelHiking.DataAccessInterfaces;
@@ -57,14 +57,17 @@ namespace IsraelHiking.Web
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddProxies();
+            services.AddResponseCompression();
+            services.AddMemoryCache();
             services.AddDetection();
             services.AddHttpClient();
             services.AddIHMDataAccess();
             services.AddIHMApi();
             services.AddSingleton<ISecurityTokenValidator, OsmAccessTokenValidator>();
             services.AddSingleton<IClientsFactory>(serviceProvider =>
-                new ClientsFactory(serviceProvider.GetRequiredService<ILogger>(), 
-                serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient(), 
+                new ClientsFactory(serviceProvider.GetRequiredService<ILogger>(),
+                serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient(),
                 serviceProvider.GetRequiredService<IOptions<ConfigurationData>>().Value.OsmConfiguration.BaseAddress + "/api/"));
             var geometryFactory = new GeometryFactory(new PrecisionModel(100000000));
             services.AddSingleton<GeometryFactory, GeometryFactory>(serviceProvider => geometryFactory);
@@ -80,7 +83,8 @@ namespace IsraelHiking.Web
                     options.SerializerSettings.Converters.Add(converter);
                 }
             });
-            services.AddAuthentication(options => {
+            services.AddAuthentication(options =>
+            {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
             }).AddJwtBearer();
@@ -136,7 +140,7 @@ namespace IsraelHiking.Web
                 rewriteOptions.AddRedirectToHttps();
             }
             app.UseRewriter(rewriteOptions);
-
+            app.UseResponseCompression();
             app.UseCors(builder =>
             {
                 builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();//.AllowCredentials();
@@ -167,30 +171,37 @@ namespace IsraelHiking.Web
             var fileExtensionContentTypeProvider = new FileExtensionContentTypeProvider();
             fileExtensionContentTypeProvider.Mappings.Add(".pbf", "application/x-protobuf");
             fileExtensionContentTypeProvider.Mappings.Add(".db", "application/octet-stream");
+            fileExtensionContentTypeProvider.Mappings.Add(".geojson", "application/json");
 
-            foreach (var proxy in configurationData.ProxiesDictionary)
+            app.UseProxies(proxies =>
             {
-                app.UseProxy(proxy.Key, (_, args) =>
+                foreach (var proxyEntry in configurationData.ProxiesDictionary)
                 {
-                    var targetAddress = proxy.Value;
-                    foreach (var argValuePair in args)
-                    {
-                        targetAddress = targetAddress.Replace("{" + argValuePair.Key + "}", argValuePair.Value.ToString());
-                    }
-                    return targetAddress;
-                });
-            }
+                    proxies.Map(proxyEntry.Key,
+                        proxy => proxy.UseHttp((_, args) =>
+                        {
+                            var targetAddress = proxyEntry.Value;
+                            foreach (var argValuePair in args)
+                            {
+                                targetAddress = targetAddress.Replace("{" + argValuePair.Key + "}", argValuePair.Value.ToString());
+                            }
+                            return targetAddress;
+                        }
+                    ));
+                }
+            });
 
             foreach (var directory in configurationData.ListingDictionary)
             {
+                var fullPath = Path.IsPathRooted(directory.Value) ? directory.Value : Path.GetFullPath(Path.Combine(configurationData.BinariesFolder, directory.Value));
                 var fileServerOptions = new FileServerOptions
                 {
-                    FileProvider = new PhysicalFileProvider(directory.Value),
+                    FileProvider = new PhysicalFileProvider(fullPath),
                     RequestPath = new PathString("/" + directory.Key),
                     EnableDirectoryBrowsing = true,
                     DirectoryBrowserOptions =
                     {
-                        FileProvider = new PhysicalFileProvider(directory.Value),
+                        FileProvider = new PhysicalFileProvider(fullPath),
                         RequestPath = new PathString("/" + directory.Key),
                         Formatter = new BootstrapFontAwesomeDirectoryFormatter(app.ApplicationServices
                             .GetRequiredService<IFileSystemHelper>())
@@ -237,12 +248,13 @@ namespace IsraelHiking.Web
         private void InitializeServices(IServiceProvider serviceProvider)
         {
             var logger = serviceProvider.GetRequiredService<ILogger>();
+            logger.LogInformation("-----------------------------------------------");
             logger.LogInformation("Initializing singleton services");
-            serviceProvider.GetRequiredService<IElasticSearchGateway>().Initialize();
-            serviceProvider.GetRequiredService<IElevationDataStorage>().Initialize().ContinueWith(task => logger.LogInformation("Finished loading elevation data from files."));
-            serviceProvider.GetRequiredService<IWikimediaCommonGateway>().Initialize().ContinueWith(task => logger.LogInformation("Finished loading wikimedia gateway."));
-            serviceProvider.GetRequiredService<IWikipediaGateway>().Initialize().ContinueWith(task => logger.LogInformation("Finished loading wikipedia gateway."));
-            serviceProvider.GetRequiredService<IINatureGateway>().Initialize().ContinueWith(task => logger.LogInformation("Finished loading iNature gateway."));
+            var initializableServices = serviceProvider.GetServices<IInitializable>();
+            foreach (var service in initializableServices)
+            {
+                service.Initialize();
+            }
         }
 
         private string GetBinariesFolder(IServiceProvider serviceProvider)

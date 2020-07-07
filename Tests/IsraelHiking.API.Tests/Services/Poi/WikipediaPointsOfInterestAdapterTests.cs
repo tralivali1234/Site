@@ -1,5 +1,6 @@
 ﻿using IsraelHiking.API.Services.Poi;
 using IsraelHiking.Common;
+using IsraelHiking.Common.Extensions;
 using IsraelHiking.DataAccessInterfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -21,17 +22,22 @@ namespace IsraelHiking.API.Tests.Services.Poi
         {
             InitializeSubstitues();
             _wikipediaGateway = Substitute.For<IWikipediaGateway>();
-            _adapter = new WikipediaPointsOfInterestAdapter(_dataContainerConverterService, _wikipediaGateway, Substitute.For<ILogger>());
+            _adapter = new WikipediaPointsOfInterestAdapter(_wikipediaGateway, Substitute.For<ILogger>());
         }
 
         [TestMethod]
-        public void GetPointsForIndexing_ShouldGetAllPointsFromGateway()
+        public void GetAll_ShouldGetAllPointsFromGateway()
         {
-            _wikipediaGateway.GetByBoundingBox(Arg.Any<Coordinate>(), Arg.Any<Coordinate>(), Arg.Any<string>()).Returns(new List<Feature> {GetValidFeature("1", Sources.WIKIPEDIA)});
-            var points = _adapter.GetPointsForIndexing().Result;
+            var feature = GetValidFeature("1", Sources.WIKIPEDIA);
+            feature.SetId();
+            var list = new List<Feature> { feature };
+            _wikipediaGateway.GetByBoundingBox(Arg.Any<Coordinate>(), Arg.Any<Coordinate>(), Arg.Any<string>()).Returns(list);
+            _wikipediaGateway.GetByPagesTitles(Arg.Any<string[]>(), Arg.Any<string>()).Returns(list);
 
+            var points = _adapter.GetAll().Result;
+            
             _wikipediaGateway.Received(952).GetByBoundingBox(Arg.Any<Coordinate>(), Arg.Any<Coordinate>(), Arg.Any<string>());
-            Assert.AreEqual(1, points.Count); // only 1 distinct
+            Assert.AreEqual(Languages.Array.Length, points.Count); // distinct by number of lanugages
         }
 
     }

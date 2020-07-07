@@ -1,4 +1,4 @@
-﻿using IsraelHiking.Common;
+﻿using IsraelHiking.Common.Configuration;
 using IsraelHiking.DataAccessInterfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -51,6 +51,7 @@ namespace IsraelHiking.DataAccess
             {
                 _logger.LogError("Wikimedia user is empty!");
             }
+            _logger.LogInformation("Finished initializing Wikimedia common service");
         }
 
         public async Task Initialize()
@@ -131,7 +132,7 @@ namespace IsraelHiking.DataAccess
                 name += Path.GetExtension(fileName);
             }
             name = name.Replace(".jpg", ".jpeg");
-            var wikiFileName = $"Israel_Hiking_Map_{GetWikiName(name)}";
+            var wikiFileName = $"IHM_{GetWikiName(name)}";
             var wikiNameWithoutExtension = Path.GetFileNameWithoutExtension(wikiFileName);
             var countingFileName = wikiNameWithoutExtension.Substring(0, Math.Min(170, wikiNameWithoutExtension.Length));
             var extension = Path.GetExtension(wikiFileName);

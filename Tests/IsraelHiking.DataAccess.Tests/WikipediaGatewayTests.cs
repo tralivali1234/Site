@@ -18,16 +18,6 @@ namespace IsraelHiking.DataAccess.Tests
 
         [TestMethod]
         [Ignore]
-        public void GetWikiPageById()
-        {
-
-            _gateway.Initialize().Wait();
-            var results = _gateway.GetById("he_104020").Result;
-            Assert.IsNotNull(results);
-        }
-
-        [TestMethod]
-        [Ignore]
         public void GetWikiPageByBoundingBox()
         {
             _gateway.Initialize().Wait();
@@ -50,11 +40,12 @@ namespace IsraelHiking.DataAccess.Tests
 
         [TestMethod]
         [Ignore]
-        public void GetWikiPageByTitle()
+        public void GetWikiPagesByTitles_ShouldGetAllInfo()
         {
             _gateway.Initialize().Wait();
-            var results = _gateway.GetByPageTitle("aaaaaaaaa", "he").Result;
-            Assert.IsNull(results);
+
+            var results = _gateway.GetByPagesTitles(new[] { "רמות מנשה (קיבוץ)" }, "he").Result;
+            Assert.IsTrue(results.Count > 0);
         }
     }
 }

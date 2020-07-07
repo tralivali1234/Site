@@ -1,0 +1,22 @@
+﻿<div [dir]="resources.direction">
+    <div mat-dialog-content>
+        <div fxLayout="row">
+            <mat-progress-bar color="primary" [mode]="progressPersentage > 0 ? 'buffer' : 'determinate'" [value]="progressPersentage"></mat-progress-bar>
+        </div>
+        <div fxLayout="row">
+            <span class="text-small">{{progressPersentage | number: '1.1-1' }}% {{text}}</span>
+        </div>
+    </div>
+    <div mat-dialog-actions *ngIf="isError || isContinue">
+        <div fxLayout="row" fxFlex *ngIf="isError">
+            <div fxFlex>
+                <button mat-raised-button fxFill color="warn" mat-dialog-close angulartics2On="click" angularticsCategory="Progress" angularticsAction="Error progress dialog">{{resources.close}}</button>
+            </div>
+        </div>
+        <div fxLayout="row" fxFlex *ngIf="isContinue">
+            <div fxFlex>
+                <button mat-raised-button fxFill color="primary" (click)="continueAction()" angulartics2On="click" angularticsCategory="Progress" angularticsAction="Continue progress dialog">{{resources.continue}}</button>
+            </div>
+        </div>
+    </div>
+</div>

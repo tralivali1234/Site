@@ -18,7 +18,8 @@ export interface ILegendSection {
 
 @Component({
     selector: "info-sidebar",
-    templateUrl: "./info-sidebar.component.html"
+    templateUrl: "./info-sidebar.component.html",
+    styleUrls: ["./info-sidebar.component.scss"]
 })
 export class InfoSidebarComponent extends BaseMapComponent {
     public legendSections: ILegendSection[];
@@ -62,6 +63,10 @@ export class InfoSidebarComponent extends BaseMapComponent {
 
     public isApp(): boolean {
         return this.runningContext.isCordova;
+    }
+
+    public isMobile(): boolean {
+        return this.runningContext.isMobile;
     }
 
     private initalizeLegendSections() {
@@ -281,7 +286,7 @@ export class InfoSidebarComponent extends BaseMapComponent {
                     },
                     {
                         title: this.resources.legendLight4WDVehicles,
-                        latlng: { lat: 32.784185, lng: 35.1049876 },
+                        latlng: { lat: 32.7870, lng: 35.1050 },
                         zoom: 16,
                         type: "Way",
                         osmTags: ["tracktype=grade3", "highway=track"],

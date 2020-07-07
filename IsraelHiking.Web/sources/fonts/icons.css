@@ -1,10 +1,10 @@
 @font-face {
   font-family: 'IsraelHikingMap';
-  src:  url('IsraelHikingMap.eot?d1ok22');
-  src:  url('IsraelHikingMap.eot?d1ok22#iefix') format('embedded-opentype'),
-    url('IsraelHikingMap.ttf?d1ok22') format('truetype'),
-    url('IsraelHikingMap.woff?d1ok22') format('woff'),
-    url('IsraelHikingMap.svg?d1ok22#IsraelHikingMap') format('svg');
+  src:  url('IsraelHikingMap.eot?xofrtf');
+  src:  url('IsraelHikingMap.eot?xofrtf#iefix') format('embedded-opentype'),
+    url('IsraelHikingMap.ttf?xofrtf') format('truetype'),
+    url('IsraelHikingMap.woff?xofrtf') format('woff'),
+    url('IsraelHikingMap.svg?xofrtf#IsraelHikingMap') format('svg');
   font-weight: normal;
   font-style: normal;
   font-display: block;
@@ -13,7 +13,7 @@
 [class^="icon-"], [class*=" icon-"] {
   /* use !important to prevent issues with browser extensions that change fonts */
   font-family: 'IsraelHikingMap' !important;
-  speak: none;
+  speak: never;
   font-style: normal;
   font-weight: normal;
   font-variant: normal;
@@ -25,6 +25,21 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+.icon-tap:before {
+  content: "\e930";
+}
+.icon-parking:before {
+  content: "\e92c";
+}
+.icon-bollards:before {
+  content: "\e92d";
+}
+.icon-cattle-grid:before {
+  content: "\e92e";
+}
+.icon-gate:before {
+  content: "\e92f";
+}
 .icon-online:before {
   content: "\e92b";
 }

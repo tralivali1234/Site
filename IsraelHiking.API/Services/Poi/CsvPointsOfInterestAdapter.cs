@@ -4,10 +4,10 @@ using IsraelHiking.API.Gpx;
 using IsraelHiking.Common;
 using IsraelHiking.Common.Extensions;
 using IsraelHiking.DataAccessInterfaces;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -69,69 +69,70 @@ namespace IsraelHiking.API.Services.Poi
         /// The longitude of the POI
         /// </summary>
         public double Longitude { get; set; }
+        /// <summary>
+        /// The date this POI was last updated
+        /// </summary>
+        public DateTime LastModified { get; set; }
     }
 
     /// <summary>
     /// Responsible for helping with csv files
     /// </summary>
-    public class CsvPointsOfInterestAdapter : BasePointsOfInterestAdapter
+    public class CsvPointsOfInterestAdapter : IPointsOfInterestAdapter
     {
-        /// <summary>
-        /// The directory where to look for the csv files
-        /// </summary>
-        public const string CSV_DIRECTORY = "CSV";
-
-        private readonly IFileProvider _fileProvider;
         private readonly IRemoteFileFetcherGateway _remoteFileFetcherGateway;
+        private readonly IDataContainerConverterService _dataContainerConverterService;
+        private readonly ILogger _logger;
 
         /// <summary>
-        /// The file name relevant to this adapter, set it using <see cref="SetFileName"/>
+        /// The file name relevant to this adapter, set it using <see cref="SetFileNameAndAddress"/>
         /// </summary>
-        public string FileName { get; private set;  }
+        private string _fileName;
+
+        /// <summary>
+        /// The file address relevant to this adapter, set it using <see cref="SetFileNameAndAddress"/>
+        /// </summary>
+        private string _fileAddress;
 
         /// <inheritdoc />
-        public override string Source => Path.GetFileNameWithoutExtension(FileName);
+        public string Source => Path.GetFileNameWithoutExtension(_fileName);
 
         /// <summary>
-        /// Constructor, make sure to use <see cref="SetFileName"/> after constructing this
+        /// Constructor, make sure to use <see cref="SetFileNameAndAddress"/> after constructing this
         /// </summary>
         /// <param name="dataContainerConverterService"></param>
-        /// <param name="fileProvider"></param>
         /// <param name="remoteFileFetcherGateway"></param>
         /// <param name="logger"></param>
         public CsvPointsOfInterestAdapter(
             IDataContainerConverterService dataContainerConverterService,
-            IFileProvider fileProvider,
             IRemoteFileFetcherGateway remoteFileFetcherGateway,
-            ILogger logger
-        ) :
-            base(dataContainerConverterService,
-            logger)
+            ILogger logger)
         {
-            _fileProvider = fileProvider;
+            _dataContainerConverterService = dataContainerConverterService;
             _remoteFileFetcherGateway = remoteFileFetcherGateway;
+            _logger = logger;
         }
 
         /// <summary>
-        /// This method is used as late initialiation for setting file name
+        /// This method is used as late initialiation for setting file name and address
         /// </summary>
         /// <param name="fileName"></param>
-        public void SetFileName(string fileName)
+        /// <param name="fileAddress"></param>
+        public void SetFileNameAndAddress(string fileName, string fileAddress)
         {
-            FileName = fileName;
+            _fileName = fileName;
+            _fileAddress = fileAddress;
         }
 
         /// <inheritdoc />
-        public override Task<List<Feature>> GetPointsForIndexing()
+        public async Task<List<Feature>> GetAll()
         {
-            return Task.Run(() =>
+            var features = await GetAllFeaturesWithoutGeometry();
+            foreach (var feature in features)
             {
-                _logger.LogInformation("Getting records from csv file: " + FileName);
-                var pointsOfInterest = GetRecords();
-                var features = pointsOfInterest.Select(ConvertCsvRowToFeature).ToList();
-                _logger.LogInformation($"Got {features.Count} records from csv file: {FileName}");
-                return features;
-            });
+                await UpdateGeometry(feature);
+            }
+            return features;
         }
 
         private Feature ConvertCsvRowToFeature(CsvPointOfInterestRow pointOfInterest)
@@ -160,15 +161,14 @@ namespace IsraelHiking.API.Services.Poi
                 {FeatureAttributes.WEBSITE, pointOfInterest.Website}
             };
             var feature = new Feature(new Point(new Coordinate(pointOfInterest.Longitude, pointOfInterest.Latitude)), table);
+            feature.SetLastModified(pointOfInterest.LastModified > DateTime.Now ? DateTime.Now : pointOfInterest.LastModified);
             feature.SetTitles();
             feature.SetId();
             return feature;
         }
 
-        private IEnumerable<CsvPointOfInterestRow> GetRecords()
+        private IEnumerable<CsvPointOfInterestRow> GetRecords(Stream stream)
         {
-            var fileInfo = _fileProvider.GetFileInfo(Path.Combine(CSV_DIRECTORY, FileName));
-            var stream = fileInfo.CreateReadStream();
             var reader = new StreamReader(stream);
             var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
             csv.Configuration.MissingFieldFound = null;
@@ -176,9 +176,8 @@ namespace IsraelHiking.API.Services.Poi
         }
 
         /// <inheritdoc />
-        public override async Task<Feature> GetRawPointOfInterestById(string id)
+        private async Task UpdateGeometry(Feature feature)
         {
-            var feature = GetRecords().Where(r => r.Id == id).Select(ConvertCsvRowToFeature).First();
             if (feature.Attributes.Exists(FeatureAttributes.POI_SHARE_REFERENCE) &&
                 !string.IsNullOrWhiteSpace(feature.Attributes[FeatureAttributes.POI_SHARE_REFERENCE].ToString()))
             {
@@ -186,7 +185,30 @@ namespace IsraelHiking.API.Services.Poi
                 var convertedBytes = await _dataContainerConverterService.Convert(content.Content, content.FileName, FlowFormats.GEOJSON);
                 feature.Geometry = convertedBytes.ToFeatureCollection().FirstOrDefault()?.Geometry ?? feature.Geometry;
             }
-            return feature;
+        }
+
+        /// <inheritdoc />
+        public async Task<List<Feature>> GetUpdates(DateTime lastMoidifiedDate)
+        {
+            var features = await GetAllFeaturesWithoutGeometry();
+            features = features.Where(f => f.GetLastModified() > lastMoidifiedDate).ToList();
+            foreach (var feature in features)
+            {
+                await UpdateGeometry(feature);
+            }
+            return features;
+        }
+
+        private async Task<List<Feature>> GetAllFeaturesWithoutGeometry()
+        {
+            _logger.LogInformation("Getting records from csv file: " + _fileName);
+            var fileContent = await _remoteFileFetcherGateway.GetFileContent(_fileAddress);
+            using var memoryStream = new MemoryStream(fileContent.Content);
+            var csvRows = GetRecords(memoryStream);
+            var features =  csvRows.Select(ConvertCsvRowToFeature).ToList();
+            _logger.LogInformation($"Got {features.Count} records from csv file: {_fileName}");
+            return features;
+
         }
     }
 }

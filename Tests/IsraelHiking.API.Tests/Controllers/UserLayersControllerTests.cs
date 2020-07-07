@@ -1,6 +1,6 @@
 ﻿using IsraelHiking.API.Controllers;
 using IsraelHiking.Common;
-using IsraelHiking.DataAccessInterfaces;
+using IsraelHiking.DataAccessInterfaces.Repositories;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using NSubstitute;
@@ -11,13 +11,13 @@ namespace IsraelHiking.API.Tests.Controllers
     [TestClass]
     public class UserLayersControllerTests
     {
-        private IRepository _repository;
+        private IUserLayersRepository _repository;
         private UserLayersController _controller;
         
         [TestInitialize]
         public void TestInitialize()
         {
-            _repository = Substitute.For<IRepository>();
+            _repository = Substitute.For<IUserLayersRepository>();
             _controller = new UserLayersController(_repository);
         }
 

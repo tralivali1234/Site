@@ -1,7 +1,5 @@
 import { Component } from "@angular/core";
 import { LocalStorage } from "ngx-store";
-import { first } from "rxjs/operators";
-import { NgRedux } from "@angular-redux/store";
 import { MapComponent } from "ngx-mapbox-gl";
 
 import { ResourcesService } from "../services/resources.service";
@@ -9,15 +7,12 @@ import { BaseMapComponent } from "./base-map.component";
 import { GeoLocationService } from "../services/geo-location.service";
 import { ToastService } from "../services/toast.service";
 import { FitBoundsService } from "../services/fit-bounds.service";
-import { RoutesFactory } from "../services/layers/routelayers/routes.factory";
 import { CancelableTimeoutService } from "../services/cancelable-timeout.service";
 import { SelectedRouteService } from "../services/layers/routelayers/selected-route.service";
 import { SpatialService } from "../services/spatial.service";
-import { FileService } from "../services/file.service";
-import { LoggingService } from "../services/logging.service";
-import { AddRouteAction, AddRecordingPointsAction } from "../reducres/routes.reducer";
-import { StartRecordingAction } from "../reducres/route-editing-state.reducer";
-import { ApplicationState, LatLngAlt, ILatLngTime } from "../models/models";
+import { DeviceOrientationService } from "../services/device-orientation.service";
+import { RecordedRouteService } from "../services/recorded-route.service";
+import { LatLngAlt } from "../models/models";
 
 @Component({
     selector: "location",
@@ -32,6 +27,8 @@ export class LocationComponent extends BaseMapComponent {
     private showBatteryConfirmation = true;
 
     private isPanned: boolean;
+    private lastSpeed: number;
+    private lastSpeedTime: number;
 
     public locationFeatures: GeoJSON.FeatureCollection<GeoJSON.Geometry>;
     public isFollowing: boolean;
@@ -42,12 +39,10 @@ export class LocationComponent extends BaseMapComponent {
                 private readonly geoLocationService: GeoLocationService,
                 private readonly toastService: ToastService,
                 private readonly selectedRouteService: SelectedRouteService,
-                private readonly routesFactory: RoutesFactory,
+                private readonly recordedRouteService: RecordedRouteService,
                 private readonly cancelableTimeoutService: CancelableTimeoutService,
                 private readonly fitBoundsService: FitBoundsService,
-                private readonly fileService: FileService,
-                private readonly loggingService: LoggingService,
-                private readonly ngRedux: NgRedux<ApplicationState>,
+                private readonly deviceOrientationService: DeviceOrientationService,
                 private readonly host: MapComponent) {
         super(resources);
 
@@ -55,7 +50,9 @@ export class LocationComponent extends BaseMapComponent {
         this.isPanned = false;
         this.isKeepNorthUp = false;
         this.locationLatLng = null;
-        this.updateLocationFeatureCollection(null);
+        this.lastSpeed = null;
+        this.lastSpeedTime = null;
+        this.clearLocationFeatureCollection();
 
         this.host.load.subscribe(() => {
             this.host.mapInstance.on("dragstart",
@@ -68,7 +65,7 @@ export class LocationComponent extends BaseMapComponent {
                     this.cancelableTimeoutService.setTimeoutByGroup(() => {
                         this.isPanned = false;
                         if (this.isFollowingLocation()) {
-                            this.setLocation();
+                            this.moveMapToGpsPosition();
                         }
                     },
                         LocationComponent.NOT_FOLLOWING_TIMEOUT,
@@ -80,36 +77,28 @@ export class LocationComponent extends BaseMapComponent {
             (position: Position) => {
                 if (position != null) {
                     this.handlePositionChange(position);
-                    this.updateRecordingRouteIfNeeded([this.geoLocationService.currentLocation]);
                 }
             });
         this.geoLocationService.bulkPositionChanged.subscribe(
             (positions: Position[]) => {
                 this.handlePositionChange(positions[positions.length - 1]);
-                let latlngs = positions.map(p => this.geoLocationService.positionToLatLngTime(p));
-                this.updateRecordingRouteIfNeeded(latlngs);
             });
 
-        let lastRecordedRoute = this.selectedRouteService.getRecordingRoute();
-        if (lastRecordedRoute != null) {
-            this.loggingService.info("Recording was interrupted");
-            this.resources.languageChanged.pipe(first()).toPromise().then(() => {
-                // let resources service get the strings
-                this.toastService.confirm({
-                    message: this.resources.continueRecording,
-                    type: "YesNo",
-                    confirmAction: () => {
-                        this.loggingService.info("User choose to continue recording");
-                        this.toggleTracking();
-                        this.selectedRouteService.setSelectedRoute(lastRecordedRoute.id);
-                    },
-                    declineAction: () => {
-                        this.loggingService.info("User choose to stop recording");
-                        this.stopRecording();
-                    },
-                });
-            });
-        }
+        this.deviceOrientationService.orientationChanged.subscribe((bearing: number) => {
+            if (!this.isActive() || this.locationFeatures.features.length === 0) {
+                return;
+            }
+            if (this.lastSpeed != null && new Date().getTime() - this.lastSpeedTime < 5000) {
+                return;
+            }
+            this.lastSpeed = null;
+            let center = this.getCenterFromLocationFeatureCollection();
+            let radius = this.getRadiusFromLocationFeatureCollection();
+            this.updateLocationFeatureCollection(center, radius, bearing);
+            if (!this.host.mapInstance.isMoving() && this.isFollowingLocation()) {
+                this.moveMapToGpsPosition();
+            }
+        });
     }
 
     public isFollowingLocation(): boolean {
@@ -125,8 +114,7 @@ export class LocationComponent extends BaseMapComponent {
         if (selectedRoute != null && (selectedRoute.state === "Poi" || selectedRoute.state === "Route")) {
             return;
         }
-        let coordinates = (this.locationFeatures.features[0].geometry as GeoJSON.Point).coordinates as [number, number];
-        this.locationLatLng = SpatialService.toLatLng(coordinates);
+        this.locationLatLng = this.getCenterFromLocationFeatureCollection();
     }
 
     public toggleKeepNorthUp() {
@@ -145,20 +133,18 @@ export class LocationComponent extends BaseMapComponent {
 
     public toggleTracking() {
         if (this.isLoading()) {
-            this.disableGeoLocation();
+            this.disableLocation();
             return;
         }
         if (this.isDisabled()) {
-            this.geoLocationService.enable();
-            this.isFollowing = true;
-            this.isPanned = false;
+            this.enableLocation();
             return;
         }
         // is active must be true
         if (!this.isFollowing || this.isPanned) {
             this.isFollowing = true;
             this.isPanned = false;
-            this.setLocation();
+            this.moveMapToGpsPosition();
             return;
         }
         // following and not panned
@@ -167,7 +153,7 @@ export class LocationComponent extends BaseMapComponent {
             return;
         }
         if (!this.isRecording()) {
-            this.disableGeoLocation();
+            this.disableLocation();
             return;
         }
     }
@@ -177,7 +163,7 @@ export class LocationComponent extends BaseMapComponent {
     }
 
     public isRecording() {
-        return this.selectedRouteService.getRecordingRoute() != null;
+        return this.recordedRouteService.isRecording();
     }
 
     public toggleRecording() {
@@ -186,7 +172,7 @@ export class LocationComponent extends BaseMapComponent {
                 message: this.resources.areYouSureYouWantToStopRecording,
                 type: "YesNo",
                 confirmAction: () => {
-                    this.stopRecording();
+                    this.recordedRouteService.stopRecording();
                 },
                 declineAction: () => { },
             });
@@ -202,44 +188,8 @@ export class LocationComponent extends BaseMapComponent {
                     customDeclineText: this.resources.dontShowThisMessageAgain
                 });
             }
-            this.createRecordingRoute();
+            this.recordedRouteService.startRecording();
         }
-    }
-
-    private stopRecording() {
-        this.loggingService.debug("Stop recording");
-        this.selectedRouteService.stopRecording();
-    }
-
-    private createRecordingRoute() {
-        this.loggingService.debug("Starting recording");
-        let date = new Date();
-        let name = this.resources.route + " " + date.toISOString().split("T")[0];
-        if (!this.selectedRouteService.isNameAvailable(name)) {
-            let dateString =
-                `${date.toISOString().split("T")[0]} ${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`;
-            name = this.resources.route + " " + dateString;
-        }
-        let route = this.routesFactory.createRouteData(name, this.selectedRouteService.getLeastUsedColor());
-        let currentLocation = this.geoLocationService.currentLocation;
-        let routingType = this.ngRedux.getState().routeEditingState.routingType;
-        route.segments.push({
-            routingType,
-            latlngs: [currentLocation, currentLocation],
-            routePoint: currentLocation
-        });
-        route.segments.push({
-            routingType,
-            latlngs: [currentLocation],
-            routePoint: currentLocation
-        });
-        this.ngRedux.dispatch(new AddRouteAction({
-            routeData: route
-        }));
-        this.selectedRouteService.setSelectedRoute(route.id);
-        this.ngRedux.dispatch(new StartRecordingAction({
-            routeId: route.id
-        }));
     }
 
     public isDisabled() {
@@ -258,67 +208,75 @@ export class LocationComponent extends BaseMapComponent {
         if (this.locationFeatures.features.length === 0) {
             this.isFollowing = true;
         }
-        let heading = null;
-        let needToUpdateHeading = !isNaN(position.coords.heading) && position.coords.speed !== 0;
-        if (needToUpdateHeading) {
-            heading = position.coords.heading;
+        let validHeading = !isNaN(position.coords.heading) && position.coords.speed !== 0;
+        if (validHeading) {
+            this.lastSpeed = position.coords.speed;
+            this.lastSpeedTime = new Date().getTime();
         }
+        let heading = validHeading ? position.coords.heading : this.getBrearingFromLocationFeatureCollection();
         this.updateLocationFeatureCollection({
             lat: position.coords.latitude,
             lng: position.coords.longitude,
             alt: position.coords.altitude
         }, position.coords.accuracy, heading);
-
-        if (!this.host.mapInstance.isMoving()) {
-            if (this.isFollowingLocation() && this.isKeepNorthUp) {
-                this.setLocation();
-            } else if (this.isFollowingLocation() && !this.isKeepNorthUp && needToUpdateHeading) {
-                this.setLocation(heading);
-            } else if (this.isFollowingLocation() && !this.isKeepNorthUp && !needToUpdateHeading) {
-                this.setLocation();
-            }
+        if (!this.host.mapInstance.isMoving() && this.isFollowingLocation()) {
+            this.moveMapToGpsPosition();
         }
     }
 
-    private updateRecordingRouteIfNeeded(locations: ILatLngTime[]) {
-        let recordingRoute = this.selectedRouteService.getRecordingRoute();
-        if (recordingRoute != null) {
-            this.loggingService.debug("Adding a new point/s to the recording route.");
-            this.ngRedux.dispatch(new AddRecordingPointsAction({
-                routeId: recordingRoute.id,
-                latlngs: locations
-            }));
-        }
-    }
-
-    private disableGeoLocation() {
+    private disableLocation() {
         this.geoLocationService.disable();
-        if (this.locationFeatures.features.length > 0) {
-            this.updateLocationFeatureCollection(null);
-        }
+        this.deviceOrientationService.disable();
+        this.clearLocationFeatureCollection();
     }
 
-    private setLocation(bearing?: number) {
-        if (this.locationFeatures.features.length > 0) {
-            let pointGeometry = this.locationFeatures.features.map(f => f.geometry).find(g => g.type === "Point") as GeoJSON.Point;
-            let coordinates = pointGeometry.coordinates as [number, number];
-            let center = SpatialService.toLatLng(coordinates);
-            let zoom = this.host.mapInstance.getZoom();
-            this.fitBoundsService.moveTo(center, zoom, bearing);
-        }
+    private enableLocation() {
+        this.geoLocationService.enable();
+        this.deviceOrientationService.enable();
+        this.isFollowing = true;
+        this.isPanned = false;
     }
 
-    private updateLocationFeatureCollection(center: LatLngAlt, radius?: number, heading?: number) {
-        if (center == null) {
-            this.locationFeatures = {
-                type: "FeatureCollection",
-                features: []
-            };
+    private moveMapToGpsPosition() {
+        if (this.locationFeatures.features.length === 0) {
             return;
         }
-        if (heading == null && this.locationFeatures.features.length > 0) {
-            heading = this.locationFeatures.features[0].properties.heading;
+        let center = this.getCenterFromLocationFeatureCollection();
+        let bearing = this.isKeepNorthUp
+            ? 0
+            : this.getBrearingFromLocationFeatureCollection();
+        this.fitBoundsService.moveTo(center, this.host.mapInstance.getZoom(), bearing);
+    }
+
+    private getCenterFromLocationFeatureCollection(): LatLngAlt {
+        let pointGeometry = this.locationFeatures.features.map(f => f.geometry).find(g => g.type === "Point") as GeoJSON.Point;
+        let coordinates = pointGeometry.coordinates as [number, number];
+        return SpatialService.toLatLng(coordinates);
+    }
+
+    private getBrearingFromLocationFeatureCollection(): number {
+        let pointFeature = this.locationFeatures.features.find(f => f.geometry.type === "Point");
+        return pointFeature == null
+            ? this.host.mapInstance.getBearing()
+            : pointFeature.properties.heading;
+    }
+
+    private getRadiusFromLocationFeatureCollection(): number {
+        let radiusFeature = this.locationFeatures.features.find(f => f.geometry.type === "Polygon");
+        if (radiusFeature == null) {
+            return null;
         }
+        return radiusFeature.properties.radius;
+    }
+
+    private clearLocationFeatureCollection() {
+        this.locationFeatures = {
+            type: "FeatureCollection",
+            features: []
+        };
+    }
+
+    private updateLocationFeatureCollection(center: LatLngAlt, radius: number, heading: number) {
         let features: GeoJSON.Feature<GeoJSON.Geometry>[] = [{
             type: "Feature",
             properties: { heading },
@@ -328,7 +286,7 @@ export class LocationComponent extends BaseMapComponent {
             }
         }];
         if (radius != null) {
-            features.push(SpatialService.getCirclePolygon(center, radius));
+            features.push(SpatialService.getCirclePolygonFeature(center, radius));
         }
         this.locationFeatures = {
             type: "FeatureCollection",

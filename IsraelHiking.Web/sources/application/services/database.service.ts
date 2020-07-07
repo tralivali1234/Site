@@ -13,7 +13,7 @@ import { RunningContextService } from "./running-context.service";
 import { initialState, ISRAEL_HIKING_MAP, ISRAEL_MTB_MAP, SATELLITE, ESRI, HIKING_TRAILS, BICYCLE_TRAILS } from "../reducres/initial-state";
 import { classToActionMiddleware } from "../reducres/reducer-action-decorator";
 import { rootReducer } from "../reducres/root.reducer";
-import { ApplicationState, LatLngAlt } from "../models/models";
+import { ApplicationState } from "../models/models";
 import { ToastService } from "./toast.service";
 import { ResourcesService } from "./resources.service";
 
@@ -208,24 +208,43 @@ export class DatabaseService {
         return this.sourceDatabases.get(dbName);
     }
 
-    public storePois(pois: GeoJSON.Feature[]): Promise<any> {
+    public storePois(pois: GeoJSON.Feature[]): Promise<void> {
         return this.poisDatabase.table(DatabaseService.POIS_TABLE_NAME).bulkPut(pois);
     }
 
-    public getPois(northEast: LatLngAlt, southWest: LatLngAlt, categoriesTypes: string[], language: string): Promise<GeoJSON.Feature[]> {
-        return this.poisDatabase.table(DatabaseService.POIS_TABLE_NAME)
-            .where(DatabaseService.POIS_LOCATION_COLUMN)
-            .between([southWest.lat, southWest.lng], [northEast.lat, northEast.lng])
-            .filter((x: GeoJSON.Feature) => x.properties.poiLanguage === language || x.properties.poiLanguage === "all")
-            .filter((x: GeoJSON.Feature) => categoriesTypes.indexOf(x.properties.poiCategory) !== -1)
-            .toArray();
+    public deletePois(poiIds: string[]): Promise<void> {
+        return this.poisDatabase.table(DatabaseService.POIS_TABLE_NAME).bulkDelete(poiIds);
+    }
+
+    public async getPoisForClustering(): Promise<GeoJSON.Feature<GeoJSON.Point>[]> {
+        this.loggingService.debug("Getting POIs for clutering from DB");
+        let features = await this.poisDatabase.table(DatabaseService.POIS_TABLE_NAME).toArray();
+        let slimPois = features.map((feature: GeoJSON.Feature) => {
+            let geoLocation = feature.properties.poiGeolocation;
+            let slimFeature = {
+                type: "Feature",
+                geometry: {
+                    type: "Point",
+                    coordinates: [parseFloat(geoLocation.lon), parseFloat(geoLocation.lat)]
+                },
+                properties: feature.properties
+            } as GeoJSON.Feature<GeoJSON.Point>;
+            slimFeature.properties.poiHasExtraData = {};
+
+            for (let language of Object.keys(slimFeature.properties.poiNames)) {
+                slimFeature.properties.poiHasExtraData[language] = (slimFeature.properties["description:" + language] != null)
+                    || Object.keys(slimFeature.properties).find(k => k.startsWith("image")) != null;
+            }
+            return slimFeature;
+        });
+        return slimPois;
     }
 
     public getPoiById(id: string): Promise<GeoJSON.Feature> {
         return this.poisDatabase.table(DatabaseService.POIS_TABLE_NAME).get(id);
     }
 
-    public storeImages(images: ImageUrlAndData[]): Promise<any> {
+    public storeImages(images: ImageUrlAndData[]): Promise<void> {
         return this.imagesDatabase.table(DatabaseService.IMAGES_TABLE_NAME).bulkPut(images);
     }
 

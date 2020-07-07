@@ -3,10 +3,14 @@ using IsraelHiking.API.Executors;
 using IsraelHiking.API.Services;
 using IsraelHiking.API.Services.Poi;
 using IsraelHiking.Common;
+using IsraelHiking.Common.Api;
+using IsraelHiking.Common.Configuration;
+using IsraelHiking.Common.Extensions;
 using IsraelHiking.Common.Poi;
 using IsraelHiking.DataAccessInterfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NetTopologySuite.Features;
 using OsmSharp.IO.API;
@@ -31,8 +35,10 @@ namespace IsraelHiking.API.Controllers
         private readonly IPointsOfInterestProvider _pointsOfInterestProvider;
         private readonly IBase64ImageStringToFileConverter _base64ImageConverter;
         private readonly IImagesUrlsStorageExecutor _imageUrlStoreExecutor;
+        private readonly ISimplePointAdderExecutor _simplePointAdderExecutor;
+        private readonly ILogger _logger;
         private readonly ConfigurationData _options;
-        private readonly LruCache<string, TokenAndSecret> _cache;
+        private readonly UsersIdAndTokensCache _cache;
 
         /// <summary>
         /// Controller's constructor
@@ -43,6 +49,8 @@ namespace IsraelHiking.API.Controllers
         /// <param name="pointsOfInterestProvider"></param>
         /// <param name="base64ImageConverter"></param>
         /// <param name="imageUrlStoreExecutor"></param>
+        /// <param name="simplePointAdderExecutor"></param>
+        /// <param name="logger"></param>
         /// <param name="options"></param>
         /// <param name="cache"></param>
         public PointsOfInterestController(IClientsFactory clientsFactory,
@@ -51,8 +59,10 @@ namespace IsraelHiking.API.Controllers
             IPointsOfInterestProvider pointsOfInterestProvider,
             IBase64ImageStringToFileConverter base64ImageConverter,
             IImagesUrlsStorageExecutor imageUrlStoreExecutor,
+            ISimplePointAdderExecutor simplePointAdderExecutor,
+            ILogger logger,
             IOptions<ConfigurationData> options,
-            LruCache<string, TokenAndSecret> cache)
+            UsersIdAndTokensCache cache)
         {
             _clientsFactory = clientsFactory;
             _tagsHelper = tagsHelper;
@@ -61,19 +71,21 @@ namespace IsraelHiking.API.Controllers
             _imageUrlStoreExecutor = imageUrlStoreExecutor;
             _pointsOfInterestProvider = pointsOfInterestProvider;
             _wikimediaCommonGateway = wikimediaCommonGateway;
+            _simplePointAdderExecutor = simplePointAdderExecutor;
+            _logger = logger;
             _options = options.Value;
         }
 
         /// <summary>
         /// Gets the available categories for the specified type
         /// </summary>
-        /// <param name="categoriesType">The categories' type</param>
+        /// <param name="categoriesGroup">The categories' type</param>
         /// <returns></returns>
-        [Route("categories/{categoriesType}")]
+        [Route("categories/{categoriesGroup}")]
         [HttpGet]
-        public IEnumerable<Category> GetCategoriesByType(string categoriesType)
+        public IEnumerable<Category> GetCategoriesByGroup(string categoriesGroup)
         {
-            return _tagsHelper.GetCategoriesByType(categoriesType);
+            return _tagsHelper.GetCategoriesByGroup(categoriesGroup);
         }
 
         /// <summary>
@@ -147,8 +159,7 @@ namespace IsraelHiking.API.Controllers
             {
                 return BadRequest("Title must not be more than 255 characters...");
             }
-            var tokenAndSecret = _cache.Get(User.Identity.Name);
-            var osmGateway = _clientsFactory.CreateOAuthClient(_options.OsmConfiguration.ConsumerKey, _options.OsmConfiguration.ConsumerSecret, tokenAndSecret.Token, tokenAndSecret.TokenSecret);
+            var osmGateway = CreateOsmGateway();
             var user = await osmGateway.GetUserDetails();
             var imageUrls = pointOfInterest.ImagesUrls ?? new string[0];
             for (var urlIndex = 0; urlIndex < imageUrls.Length; urlIndex++)
@@ -161,30 +172,26 @@ namespace IsraelHiking.API.Controllers
                 {
                     continue;
                 }
-                using (var md5 = MD5.Create())
+                using var md5 = MD5.Create();
+                var imageUrl = await _imageUrlStoreExecutor.GetImageUrlIfExists(md5, file.Content);
+                if (imageUrl != null)
                 {
-                    var imageUrl = await _imageUrlStoreExecutor.GetImageUrlIfExists(md5, file.Content);
-                    if (imageUrl != null)
-                    {
-                        imageUrls[urlIndex] = imageUrl;
-                        continue;
-                    }
-                    using (var memoryStream = new MemoryStream(file.Content))
-                    {
-                        var imageName = await _wikimediaCommonGateway.UploadImage(pointOfInterest.Title,
-                            pointOfInterest.Description, user.DisplayName, file.FileName, memoryStream,
-                            pointOfInterest.Location.ToCoordinate());
-                        imageUrls[urlIndex] = await _wikimediaCommonGateway.GetImageUrl(imageName);
-                        await _imageUrlStoreExecutor.StoreImage(md5, file.Content, imageUrls[urlIndex]);
-                    }
+                    imageUrls[urlIndex] = imageUrl;
+                    continue;
                 }
+                using var memoryStream = new MemoryStream(file.Content);
+                var imageName = await _wikimediaCommonGateway.UploadImage(pointOfInterest.Title,
+                    pointOfInterest.Description, user.DisplayName, file.FileName, memoryStream,
+                    pointOfInterest.Location.ToCoordinate());
+                imageUrls[urlIndex] = await _wikimediaCommonGateway.GetImageUrl(imageName);
+                await _imageUrlStoreExecutor.StoreImage(md5, file.Content, imageUrls[urlIndex]);
             }
 
             if (string.IsNullOrWhiteSpace(pointOfInterest.Id))
             {
-                return Ok(await _pointsOfInterestProvider.AddPointOfInterest(pointOfInterest, tokenAndSecret, language));
+                return Ok(await _pointsOfInterestProvider.AddPointOfInterest(pointOfInterest, osmGateway, language));
             }
-            return Ok(await _pointsOfInterestProvider.UpdatePointOfInterest(pointOfInterest, tokenAndSecret, language));
+            return Ok(await _pointsOfInterestProvider.UpdatePointOfInterest(pointOfInterest, osmGateway, language));
         }
 
         /// <summary>
@@ -199,6 +206,54 @@ namespace IsraelHiking.API.Controllers
         public Task<Feature> GetClosestPoint(string location, string source, string language)
         {
             return _pointsOfInterestProvider.GetClosestPoint(location.ToCoordinate(), source, language);
+        }
+
+        /// <summary>
+        /// Get a POI by id and source
+        /// </summary>
+        /// <param name="lastModified"></param>
+        /// <returns></returns>
+        [Route("updates/{lastModified}")]
+        [HttpGet]
+        public async Task<UpdatesResponse> GetPointOfInterestUpdates(DateTime lastModified)
+        {
+            _logger.LogInformation("Got POIs updates request for " + lastModified.ToString());
+            var response = await _pointsOfInterestProvider.GetUpdates(lastModified);
+            _logger.LogInformation("Got updates from database, getting images");
+            var imageUrls = new List<string>();
+            foreach (var feature in response.Features)
+            {
+                var currentImageUrls = feature.Attributes.GetNames()
+                    .Where(a => a.StartsWith(FeatureAttributes.IMAGE_URL))
+                    .Select(k => feature.Attributes[k].ToString());
+                imageUrls.AddRange(currentImageUrls.ToList());
+            }
+            response.Images = await _imageUrlStoreExecutor.GetAllImagesForUrls(imageUrls.ToArray());
+            _logger.LogInformation("Finished getting POIs updates, returning content to client");
+            return response;
+        }
+
+        /// <summary>
+        /// Get a POI by id and source
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [Route("simple")]
+        [HttpPost]
+        [Authorize]
+        public Task AddSimplePoint([FromBody]AddSimplePointOfInterestRequest request)
+        {
+            _logger.LogInformation($"Adding a simple POI at of type {request.PointType} at {request.LatLng.Lat}, {request.LatLng.Lng}");
+            var osmGateway = CreateOsmGateway();
+            return _simplePointAdderExecutor.Add(osmGateway, request);
+        }
+
+        
+
+        private IAuthClient CreateOsmGateway()
+        {
+            var tokenAndSecret = _cache.Get(User.Identity.Name);
+            return _clientsFactory.CreateOAuthClient(_options.OsmConfiguration.ConsumerKey, _options.OsmConfiguration.ConsumerSecret, tokenAndSecret.Token, tokenAndSecret.TokenSecret);
         }
     }
 }

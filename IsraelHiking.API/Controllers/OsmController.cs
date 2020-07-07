@@ -2,8 +2,7 @@
 using IsraelHiking.API.Gpx;
 using IsraelHiking.API.Services;
 using IsraelHiking.API.Services.Osm;
-using IsraelHiking.Common;
-using IsraelHiking.DataAccessInterfaces;
+using IsraelHiking.Common.Configuration;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -15,7 +14,6 @@ using OsmSharp.IO.API;
 using ProjNet.CoordinateSystems.Transformations;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -31,14 +29,13 @@ namespace IsraelHiking.API.Controllers
     {
         private readonly IClientsFactory _clentsFactory;
         private readonly IDataContainerConverterService _dataContainerConverterService;
-        private readonly MathTransform _itmWgs84MathTransform;
-        private readonly MathTransform _wgs84ItmMathTransform;
-        private readonly IElasticSearchGateway _elasticSearchGateway;
         private readonly IAddibleGpxLinesFinderService _addibleGpxLinesFinderService;
         private readonly IOsmLineAdderService _osmLineAdderService;
         private readonly GeometryFactory _geometryFactory;
-        private readonly LruCache<string, TokenAndSecret> _cache;
+        private readonly UsersIdAndTokensCache _cache;
         private readonly ConfigurationData _options;
+        private readonly MathTransform _itmWgs84MathTransform;
+        private readonly MathTransform _wgs84ItmMathTransform;
 
         /// <summary>
         /// Controller's constructor
@@ -46,7 +43,6 @@ namespace IsraelHiking.API.Controllers
         /// <param name="clentsFactory"></param>
         /// <param name="dataContainerConverterService"></param>
         /// <param name="itmWgs84MathTransfromFactory"></param>
-        /// <param name="elasticSearchGateway"></param>
         /// <param name="addibleGpxLinesFinderService"></param>
         /// <param name="osmLineAdderService"></param>
         /// <param name="options"></param>
@@ -55,40 +51,21 @@ namespace IsraelHiking.API.Controllers
         public OsmController(IClientsFactory clentsFactory,
             IDataContainerConverterService dataContainerConverterService,
             IItmWgs84MathTransfromFactory itmWgs84MathTransfromFactory,
-            IElasticSearchGateway elasticSearchGateway,
             IAddibleGpxLinesFinderService addibleGpxLinesFinderService,
             IOsmLineAdderService osmLineAdderService,
             IOptions<ConfigurationData> options,
             GeometryFactory geometryFactory,
-            LruCache<string, TokenAndSecret> cache)
+            UsersIdAndTokensCache cache)
         {
             _clentsFactory = clentsFactory;
             _dataContainerConverterService = dataContainerConverterService;
             _itmWgs84MathTransform = itmWgs84MathTransfromFactory.Create();
             _wgs84ItmMathTransform = itmWgs84MathTransfromFactory.CreateInverse();
-            _elasticSearchGateway = elasticSearchGateway;
             _addibleGpxLinesFinderService = addibleGpxLinesFinderService;
             _osmLineAdderService = osmLineAdderService;
             _options = options.Value;
             _geometryFactory = geometryFactory;
             _cache = cache;
-        }
-
-        /// <summary>
-        /// Get a list of highways in the given bounding box
-        /// </summary>
-        /// <param name="northEast">Bounding box's north-east coordinates</param>
-        /// <param name="southWest">Bounding box's south-west coordinates</param>
-        /// <returns>A list of features in GeoJSON format</returns>
-        // GET api/osm?northeast=1.2,3.4&southwest=5.6,7.8
-        [HttpGet]
-        public async Task<List<Feature>> GetSnappings(string northEast, string southWest)
-        {
-            var northEastCooridnate = northEast.ToCoordinate();
-            var southWestCoordinate = southWest.ToCoordinate();
-            var highways = await _elasticSearchGateway.GetHighways(northEastCooridnate, southWestCoordinate);
-            var points = await _elasticSearchGateway.GetPointsOfInterest(northEastCooridnate, southWestCoordinate, Categories.Points.Concat(new[] { Categories.NONE}).ToArray(), Languages.ALL);
-            return highways.Concat(points).ToList();
         }
 
         /// <summary>
@@ -141,27 +118,25 @@ namespace IsraelHiking.API.Controllers
             {
                 return BadRequest("Invalid trace id: " + traceId);
             }
-            using (var memoryStream = new MemoryStream())
+            using var memoryStream = new MemoryStream();
+            await file.Stream.CopyToAsync(memoryStream);
+            var gpxBytes = await _dataContainerConverterService.Convert(memoryStream.ToArray(), file.FileName, DataContainerConverterService.GPX);
+            var gpx = gpxBytes.ToGpx().UpdateBounds();
+            var highwayType = GetHighwayType(gpx);
+            var gpxItmLines = GpxToItmLineStrings(gpx);
+            if (!gpxItmLines.Any())
             {
-                await file.Stream.CopyToAsync(memoryStream);
-                var gpxBytes = await _dataContainerConverterService.Convert(memoryStream.ToArray(), file.FileName, DataContainerConverterService.GPX);
-                var gpx = gpxBytes.ToGpx().UpdateBounds();
-                var highwayType = GetHighwayType(gpx);
-                var gpxItmLines = GpxToItmLineStrings(gpx);
-                if (!gpxItmLines.Any())
-                {
-                    return BadRequest("File does not contain any traces...");
-                }
-                var manipulatedItmLines = await _addibleGpxLinesFinderService.GetLines(gpxItmLines);
-                var attributesTable = new AttributesTable { { "highway", highwayType } };
-                attributesTable.Add("source", "trace id: " + traceId);
-                var featureCollection = new FeatureCollection();
-                foreach (var line in manipulatedItmLines)
-                {
-                    featureCollection.Add(new Feature(ToWgs84LineString(line.Coordinates), attributesTable));
-                }
-                return Ok(featureCollection);
+                return BadRequest("File does not contain any traces...");
             }
+            var manipulatedItmLines = await _addibleGpxLinesFinderService.GetLines(gpxItmLines);
+            var attributesTable = new AttributesTable { { "highway", highwayType } };
+            attributesTable.Add("source", "trace id: " + traceId);
+            var featureCollection = new FeatureCollection();
+            foreach (var line in manipulatedItmLines)
+            {
+                featureCollection.Add(new Feature(ToWgs84LineString(line.Coordinates), attributesTable));
+            }
+            return Ok(featureCollection);
         }
 
         private string GetHighwayType(GpxFile gpx)

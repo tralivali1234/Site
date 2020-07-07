@@ -2,7 +2,9 @@
 using IsraelHiking.API.Converters;
 using IsraelHiking.API.Services;
 using IsraelHiking.Common;
+using IsraelHiking.Common.DataContainer;
 using IsraelHiking.DataAccessInterfaces;
+using IsraelHiking.DataAccessInterfaces.Repositories;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -19,14 +21,14 @@ namespace IsraelHiking.API.Tests.Controllers
     public class UrlsControllerTests
     {
         private UrlsController _controller;
-        private IRepository _repository;
+        private IShareUrlsRepository _repository;
         private IDataContainerConverterService _containerConverterService;
         private IImgurGateway _imgurGateway;
 
         [TestInitialize]
         public void TestInitialize()
         {
-            _repository = Substitute.For<IRepository>();
+            _repository = Substitute.For<IShareUrlsRepository>();
             _containerConverterService = Substitute.For<IDataContainerConverterService>();
             _imgurGateway = Substitute.For<IImgurGateway>();
             _controller = new UrlsController(_repository, _containerConverterService, new Base64ImageStringToFileConverter(), _imgurGateway, Substitute.For<ILogger>());
@@ -60,8 +62,8 @@ namespace IsraelHiking.API.Tests.Controllers
         {
             var id = "someId";
             var bytes = new byte[] { 1 };
-            _repository.GetUrlById(id).Returns(new ShareUrl { Id = id, DataContainer = new DataContainer() });
-            _containerConverterService.ToAnyFormat(Arg.Any<DataContainer>(), "gpx").Returns(bytes);
+            _repository.GetUrlById(id).Returns(new ShareUrl { Id = id, DataContainer = new DataContainerPoco() });
+            _containerConverterService.ToAnyFormat(Arg.Any<DataContainerPoco>(), "gpx").Returns(bytes);
 
             var results = _controller.GetShareUrl(id, "gpx").Result as FileContentResult;
 
@@ -131,7 +133,7 @@ namespace IsraelHiking.API.Tests.Controllers
 
             var shareUrl = new ShareUrl
             {
-                DataContainer = new DataContainer
+                DataContainer = new DataContainerPoco
                 {
                     Routes = new List<RouteData>
                     {

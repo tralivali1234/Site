@@ -3,8 +3,10 @@ using IsraelHiking.API.Services;
 using IsraelHiking.API.Services.Osm;
 using IsraelHiking.API.Services.Poi;
 using IsraelHiking.Common;
+using IsraelHiking.Common.Api;
+using IsraelHiking.Common.Configuration;
 using IsraelHiking.Common.Extensions;
-using IsraelHiking.DataAccessInterfaces;
+using IsraelHiking.DataAccessInterfaces.Repositories;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -16,8 +18,11 @@ using OsmSharp.Changesets;
 using OsmSharp.Complete;
 using OsmSharp.IO.API;
 using OsmSharp.Tags;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Xml.Serialization;
 
 namespace IsraelHiking.API.Tests.Services.Osm
 {
@@ -28,13 +33,15 @@ namespace IsraelHiking.API.Tests.Services.Osm
         private IClientsFactory _clientsFactory;
         private INonAuthClient _osmGateway;
         private IOsmRepository _osmRepository;
-        private IElasticSearchGateway _elasticSearchGateway;
+        private IExternalSourcesRepository _externalSourcesRepository;
+        private IPointsOfInterestRepository _pointsOfInterestRepository;
+        private IHighwaysRepository _highwaysRepository;
         private IOsmGeoJsonPreprocessorExecutor _geoJsonPreprocessorExecutor;
         private IFeaturesMergeExecutor _featuresMergeExecutor;
-        private IGraphHopperGateway _graphHopperGateway;
         private IOsmLatestFileFetcherExecutor _osmLatestFileFetcherExecutor;
         private IPointsOfInterestFilesCreatorExecutor _pointsOfInterestFilesCreatorExecutor;
         private IPointsOfInterestAdapterFactory _pointsOfInterestAdapterFactory;
+        private IPointsOfInterestProvider _pointsOfInterestProvider;
 
         [TestInitialize]
         public void TestInitialize()
@@ -45,24 +52,29 @@ namespace IsraelHiking.API.Tests.Services.Osm
             var options = new ConfigurationData();
             var optionsProvider = Substitute.For<IOptions<ConfigurationData>>();
             optionsProvider.Value.Returns(options);
-            _elasticSearchGateway = Substitute.For<IElasticSearchGateway>();
+            _externalSourcesRepository = Substitute.For<IExternalSourcesRepository>();
+            _pointsOfInterestRepository = Substitute.For<IPointsOfInterestRepository>();
+            _highwaysRepository = Substitute.For<IHighwaysRepository>();
             _osmRepository = Substitute.For<IOsmRepository>();
             _geoJsonPreprocessorExecutor = Substitute.For<IOsmGeoJsonPreprocessorExecutor>();
             _featuresMergeExecutor = Substitute.For<IFeaturesMergeExecutor>();
-            _graphHopperGateway = Substitute.For<IGraphHopperGateway>();
             _osmLatestFileFetcherExecutor = Substitute.For<IOsmLatestFileFetcherExecutor>();
             _pointsOfInterestFilesCreatorExecutor = Substitute.For<IPointsOfInterestFilesCreatorExecutor>();
             _pointsOfInterestAdapterFactory = Substitute.For<IPointsOfInterestAdapterFactory>();
-            _service = new DatabasesUpdaterService(_clientsFactory, 
-                _elasticSearchGateway, 
-                _geoJsonPreprocessorExecutor, 
-                new TagsHelper(optionsProvider), 
-                _osmRepository, 
-                _pointsOfInterestAdapterFactory, 
-                _featuresMergeExecutor, 
-                _osmLatestFileFetcherExecutor, 
-                _graphHopperGateway,
+            _pointsOfInterestProvider = Substitute.For<IPointsOfInterestProvider>();
+            _service = new DatabasesUpdaterService(_clientsFactory,
+                _externalSourcesRepository,
+                _pointsOfInterestRepository,
+                _highwaysRepository,
+                _geoJsonPreprocessorExecutor,
+                new TagsHelper(optionsProvider),
+                _osmRepository,
+                _pointsOfInterestAdapterFactory,
+                _featuresMergeExecutor,
+                _osmLatestFileFetcherExecutor,
                 _pointsOfInterestFilesCreatorExecutor,
+                null,
+                _pointsOfInterestProvider,
                 null,
                 Substitute.For<ILogger>());
         }
@@ -71,16 +83,20 @@ namespace IsraelHiking.API.Tests.Services.Osm
         public void TestRebuild_ShouldRebuildHighwaysAndPoints()
         {
             var adapter = Substitute.For<IPointsOfInterestAdapter>();
-            adapter.GetPointsForIndexing().Returns(new List<Feature>());
+            adapter.GetAll().Returns(new List<Feature>());
             _pointsOfInterestAdapterFactory.GetBySource(Arg.Any<string>()).Returns(adapter);
-            _elasticSearchGateway.GetExternalPoisBySource(Arg.Any<string>()).Returns(new List<Feature>());
-            _featuresMergeExecutor.Merge(Arg.Any<List<Feature>>()).Returns(new List<Feature>());
-
+            _externalSourcesRepository.GetExternalPoisBySource(Arg.Any<string>()).Returns(new List<Feature>());
+            _pointsOfInterestRepository.GetAllPointsOfInterest(Arg.Any<bool>()).Returns(new List<Feature>());
+            _pointsOfInterestRepository.GetPointsOfInterestUpdates(Arg.Any<DateTime>()).Returns(new List<Feature>());
+            _featuresMergeExecutor.Merge(Arg.Any<List<Feature>>(), Arg.Any<List<Feature>>()).Returns(new List<Feature>());
+            _pointsOfInterestProvider.GetAll().Returns(new List<Feature>());
+            
             _service.Rebuild(new UpdateRequest { Highways = true, PointsOfInterest = true, SiteMap = true }).Wait();
 
-            _elasticSearchGateway.Received(1).UpdateHighwaysZeroDownTime(Arg.Any<List<Feature>>());
-            _elasticSearchGateway.Received(1).UpdatePointsOfInterestZeroDownTime(Arg.Any<List<Feature>>());
-            _pointsOfInterestFilesCreatorExecutor.Received(1).Create(Arg.Any<List<Feature>>());
+            _highwaysRepository.Received(1).UpdateHighwaysZeroDownTime(Arg.Any<List<Feature>>());
+            _pointsOfInterestRepository.Received(2).StorePointsOfInterestDataToSecondaryIndex(Arg.Any<List<Feature>>());
+            _pointsOfInterestRepository.Received(1).SwitchPointsOfInterestIndices();
+            _pointsOfInterestFilesCreatorExecutor.Received(1).CreateSiteMapXmlFile(Arg.Any<List<Feature>>());
         }
 
         [TestMethod]
@@ -93,11 +109,12 @@ namespace IsraelHiking.API.Tests.Services.Osm
             _geoJsonPreprocessorExecutor
                 .Preprocess(Arg.Is<List<CompleteWay>>(x => x.Count == 0))
                 .Returns(new List<Feature>());
+            _osmLatestFileFetcherExecutor.GetUpdates().Returns(CreateStream(changes));
 
-            _service.Update(changes).Wait();
+            _service.Update().Wait();
 
-            _elasticSearchGateway.Received(1).UpdatePointsOfInterestData(Arg.Is<List<Feature>>(x => x.Count == 0));
-            _elasticSearchGateway.Received(1).UpdateHighwaysData(Arg.Is<List<Feature>>(x => x.Count == 0));
+            _pointsOfInterestRepository.Received(1).UpdatePointsOfInterestData(Arg.Is<List<Feature>>(x => x.Count == 0));
+            _highwaysRepository.Received(1).UpdateHighwaysData(Arg.Is<List<Feature>>(x => x.Count == 0));
         }
 
         [TestMethod]
@@ -116,11 +133,12 @@ namespace IsraelHiking.API.Tests.Services.Osm
             _geoJsonPreprocessorExecutor
                 .Preprocess(Arg.Is<List<CompleteWay>>(x => x.Count == 0))
                 .Returns(new List<Feature>());
+            _osmLatestFileFetcherExecutor.GetUpdates().Returns(CreateStream(changes));
 
-            _service.Update(changes).Wait();
+            _service.Update().Wait();
 
-            _elasticSearchGateway.Received(1).DeleteHighwaysById("way_1");
-            _elasticSearchGateway.Received(1).DeleteOsmPointOfInterestById("way_1");
+            _highwaysRepository.Received(1).DeleteHighwaysById("way_1");
+            _pointsOfInterestRepository.Received(1).DeleteOsmPointOfInterestById("way_1", Arg.Any<DateTime?>());
         }
 
         [TestMethod]
@@ -146,11 +164,12 @@ namespace IsraelHiking.API.Tests.Services.Osm
                 .Preprocess(Arg.Is<List<CompleteWay>>(x => x.Count == 1))
                 .Returns(list);
             _osmGateway.GetCompleteWay(1).Returns(way);
+            _osmLatestFileFetcherExecutor.GetUpdates().Returns(CreateStream(changes));
 
-            _service.Update(changes).Wait();
+            _service.Update().Wait();
 
-            _elasticSearchGateway.Received(1).UpdatePointsOfInterestData(Arg.Is<List<Feature>>(x => x.Count == 1));
-            _elasticSearchGateway.Received(1).UpdateHighwaysData(Arg.Is<List<Feature>>(x => x.Count == 1));
+            _pointsOfInterestRepository.Received(1).UpdatePointsOfInterestData(Arg.Is<List<Feature>>(x => x.Count == 1));
+            _highwaysRepository.Received(1).UpdateHighwaysData(Arg.Is<List<Feature>>(x => x.Count == 1));
         }
 
         [TestMethod]
@@ -187,13 +206,21 @@ namespace IsraelHiking.API.Tests.Services.Osm
                 .Preprocess(Arg.Is<List<CompleteWay>>(x => x.Count == 1))
                 .Returns(list);
             _osmGateway.GetCompleteWay(1).Returns(way);
-            _elasticSearchGateway.GetPointOfInterestById("way_1", Sources.OSM).Returns(wayFeatureInDatabase);
+            _pointsOfInterestRepository.GetPointOfInterestById("way_1", Sources.OSM).Returns(wayFeatureInDatabase);
+            _osmLatestFileFetcherExecutor.GetUpdates().Returns(CreateStream(changes));
 
-            _service.Update(changes).Wait();
+            _service.Update().Wait();
 
-            _elasticSearchGateway.Received(1).UpdatePointsOfInterestData(Arg.Is<List<Feature>>(x => x.Count == 1 && x.First().Attributes.Exists(FeatureAttributes.POI_CATEGORY)));
+            _pointsOfInterestRepository.Received(1).UpdatePointsOfInterestData(Arg.Is<List<Feature>>(x => x.Count == 1 && x.First().Attributes.Exists(FeatureAttributes.POI_CATEGORY)));
         }
 
-
+        private Stream CreateStream(OsmChange changes)
+        {
+            Stream stream = new MemoryStream();
+            var serializer = new XmlSerializer(typeof(OsmChange));
+            serializer.Serialize(stream, changes);
+            stream.Seek(0, SeekOrigin.Begin);
+            return stream;
+        }
     }
 }

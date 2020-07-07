@@ -1,18 +1,20 @@
-﻿using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
-using IsraelHiking.API.Executors;
+﻿using IsraelHiking.API.Executors;
 using IsraelHiking.API.Services.Poi;
 using IsraelHiking.Common;
+using IsraelHiking.Common.Api;
 using IsraelHiking.Common.Extensions;
-using IsraelHiking.DataAccessInterfaces;
+using IsraelHiking.DataAccessInterfaces.Repositories;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using OsmSharp;
 using OsmSharp.Changesets;
 using OsmSharp.Complete;
 using OsmSharp.IO.API;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Xml.Serialization;
 
 namespace IsraelHiking.API.Services.Osm
 {
@@ -20,62 +22,77 @@ namespace IsraelHiking.API.Services.Osm
     public class DatabasesUpdaterService : IDatabasesUpdaterService
     {
         private readonly INonAuthClient _osmGateway;
-        private readonly IElasticSearchGateway _elasticSearchGateway;
+        private readonly IExternalSourcesRepository _externalSourcesRepository;
+        private readonly IPointsOfInterestRepository _pointsOfInterestRepository;
+        private readonly IHighwaysRepository _highwaysRepository;
         private readonly IOsmGeoJsonPreprocessorExecutor _osmGeoJsonPreprocessorExecutor;
         private readonly ITagsHelper _tagsHelper;
         private readonly IOsmRepository _osmRepository;
         private readonly IPointsOfInterestAdapterFactory _pointsOfInterestAdapterFactory;
+        private readonly IPointsOfInterestProvider _pointsOfInterestProvider;
         private readonly IFeaturesMergeExecutor _featuresMergeExecutor;
-        private readonly IOsmLatestFileFetcherExecutor _latestFileFetcherExecutor;
-        private readonly IGraphHopperGateway _graphHopperGateway;
+        private readonly IOsmLatestFileFetcherExecutor _osmLatestFileFetcherExecutor;
         private readonly IPointsOfInterestFilesCreatorExecutor _pointsOfInterestFilesCreatorExecutor;
         private readonly IImagesUrlsStorageExecutor _imagesUrlsStorageExecutor;
+        private readonly IExternalSourceUpdaterExecutor _externalSourceUpdaterExecutor;
         private readonly ILogger _logger;
         /// <summary>
         /// Service's constructor
         /// </summary>
         /// <param name="clinetsFactory"></param>
-        /// <param name="elasticSearchGateway"></param>
+        /// <param name="externalSourcesRepository"></param>
+        /// <param name="pointsOfInterestRepository"></param>
+        /// <param name="highwaysRepository"></param>
         /// <param name="osmGeoJsonPreprocessorExecutor"></param>
         /// <param name="tagsHelper"></param>
         /// <param name="osmRepository"></param>
         /// <param name="pointsOfInterestAdapterFactory"></param>
         /// <param name="featuresMergeExecutor"></param>
         /// <param name="latestFileFetcherExecutor"></param>
-        /// <param name="graphHopperGateway"></param>
         /// <param name="pointsOfInterestFilesCreatorExecutor"></param>
         /// <param name="imagesUrlsStorageExecutor"></param>
+        /// <param name="pointsOfInterestProvider"></param>
+        /// <param name="externalSourceUpdaterExecutor"></param>
         /// <param name="logger"></param>
         public DatabasesUpdaterService(IClientsFactory clinetsFactory,
-            IElasticSearchGateway elasticSearchGateway,
+            IExternalSourcesRepository externalSourcesRepository,
+            IPointsOfInterestRepository pointsOfInterestRepository,
+            IHighwaysRepository highwaysRepository,
             IOsmGeoJsonPreprocessorExecutor osmGeoJsonPreprocessorExecutor,
             ITagsHelper tagsHelper, IOsmRepository osmRepository,
             IPointsOfInterestAdapterFactory pointsOfInterestAdapterFactory,
             IFeaturesMergeExecutor featuresMergeExecutor,
             IOsmLatestFileFetcherExecutor latestFileFetcherExecutor,
-            IGraphHopperGateway graphHopperGateway,
             IPointsOfInterestFilesCreatorExecutor pointsOfInterestFilesCreatorExecutor,
             IImagesUrlsStorageExecutor imagesUrlsStorageExecutor,
+            IPointsOfInterestProvider pointsOfInterestProvider,
+            IExternalSourceUpdaterExecutor externalSourceUpdaterExecutor,
             ILogger logger)
         {
-            _elasticSearchGateway = elasticSearchGateway;
+            _externalSourcesRepository = externalSourcesRepository;
+            _pointsOfInterestRepository = pointsOfInterestRepository;
+            _highwaysRepository = highwaysRepository;
             _osmGeoJsonPreprocessorExecutor = osmGeoJsonPreprocessorExecutor;
             _tagsHelper = tagsHelper;
             _osmRepository = osmRepository;
             _pointsOfInterestAdapterFactory = pointsOfInterestAdapterFactory;
             _pointsOfInterestFilesCreatorExecutor = pointsOfInterestFilesCreatorExecutor;
             _featuresMergeExecutor = featuresMergeExecutor;
-            _latestFileFetcherExecutor = latestFileFetcherExecutor;
-            _graphHopperGateway = graphHopperGateway;
+            _osmLatestFileFetcherExecutor = latestFileFetcherExecutor;
+            _pointsOfInterestProvider = pointsOfInterestProvider;
             _osmGateway = clinetsFactory.CreateNonAuthClient();
             _imagesUrlsStorageExecutor = imagesUrlsStorageExecutor;
+            _externalSourceUpdaterExecutor = externalSourceUpdaterExecutor;
             _logger = logger;
         }
 
         /// <inheritdoc />
-        public async Task Update(OsmChange changes)
+        public async Task Update()
         {
             _logger.LogInformation("Staring updating from OSM change file");
+            using var updatesStream = await _osmLatestFileFetcherExecutor.GetUpdates();
+            XmlSerializer serializer = new XmlSerializer(typeof(OsmChange));
+            var changes = (OsmChange)serializer.Deserialize(updatesStream);
             await Updatehighways(changes);
             await UpdatePointsOfInterest(changes);
             _logger.LogInformation("Finished updating from OSM change file");
@@ -86,7 +103,7 @@ namespace IsraelHiking.API.Services.Osm
             var deleteTasks = new List<Task>();
             foreach (var highwaysToRemove in changes.Delete.OfType<Way>())
             {
-                var task = _elasticSearchGateway.DeleteHighwaysById(highwaysToRemove.GetId());
+                var task = _highwaysRepository.DeleteHighwaysById(highwaysToRemove.GetId());
                 deleteTasks.Add(task);
             }
             await Task.WhenAll(deleteTasks);
@@ -101,7 +118,7 @@ namespace IsraelHiking.API.Services.Osm
             }
             var updatedWays = await Task.WhenAll(updateTasks);
             var geoJsonHighways = _osmGeoJsonPreprocessorExecutor.Preprocess(updatedWays.ToList());
-            await _elasticSearchGateway.UpdateHighwaysData(geoJsonHighways);
+            await _highwaysRepository.UpdateHighwaysData(geoJsonHighways);
         }
 
         private async Task UpdatePointsOfInterest(OsmChange changes)
@@ -110,7 +127,7 @@ namespace IsraelHiking.API.Services.Osm
             var relevantTagsDictionary = _tagsHelper.GetAllTags();
             foreach (var poiToRemove in changes.Delete)
             {
-                var task = _elasticSearchGateway.DeleteOsmPointOfInterestById(poiToRemove.GetId());
+                var task = _pointsOfInterestRepository.DeleteOsmPointOfInterestById(poiToRemove.GetId(), poiToRemove.TimeStamp);
                 deleteTasks.Add(task);
             }
             await Task.WhenAll(deleteTasks);
@@ -129,7 +146,7 @@ namespace IsraelHiking.API.Services.Osm
             foreach (var poiToUpdate in changes.Modify
                 .Where(o => IsRelevantPointOfInterest(o, relevantTagsDictionary)))
             {
-                var featureFromDb = await _elasticSearchGateway.GetPointOfInterestById(poiToUpdate.GetId(), Sources.OSM);
+                var featureFromDb = await _pointsOfInterestRepository.GetPointOfInterestById(poiToUpdate.GetId(), Sources.OSM);
                 if (featureFromDb == null)
                 {
                     continue;
@@ -145,7 +162,7 @@ namespace IsraelHiking.API.Services.Osm
                     featureToUpdate.Geometry = featureFromDb.Geometry;
                 }
             }
-            await _elasticSearchGateway.UpdatePointsOfInterestData(features);
+            await _pointsOfInterestRepository.UpdatePointsOfInterestData(features);
         }
 
         private bool IsRelevantPointOfInterest(OsmGeo osm, List<KeyValuePair<string, string>> relevantTagsDictionary)
@@ -156,46 +173,95 @@ namespace IsraelHiking.API.Services.Osm
         /// <inheritdoc />
         public async Task Rebuild(UpdateRequest request)
         {
-            if (request.Highways)
+            // Order do matters in the sequence
+            var rebuildContext = new RebuildContext
             {
-                await RebuildHighways();
-            }
-            if (request.PointsOfInterest)
+                StartTime = DateTime.Now,
+                Request = request,
+                Succeeded = true
+            };
+            try
             {
-                await RebuildPointsOfInterest();
+                if (request.AllExternalSources)
+                {
+                    await UpdateExternalSources();
+                }
+                if (request.UpdateOsmFile || request.DownloadOsmFile)
+                {
+                    await _osmLatestFileFetcherExecutor.Update(request.DownloadOsmFile, request.UpdateOsmFile);
+                }
+                if (request.Highways)
+                {
+                    await RebuildHighways();
+                }
+                if (request.PointsOfInterest)
+                {
+                    await RebuildPointsOfInterest(rebuildContext);
+                }
+                if (request.Images)
+                {
+                    await RebuildImages();
+                }
+                if (request.SiteMap)
+                {
+                    await RebuildSiteMap();
+                }
+                if (request.OfflinePoisFile)
+                {
+                    await RebuildOfflinePoisFile(rebuildContext);
+                }
             }
-            if (request.Images)
+            catch (Exception ex)
             {
-                await RebuildImages();
+                rebuildContext.Succeeded = false;
+                rebuildContext.ErrorMessage = ex.Message;
+                _logger.LogError(ex, "Failed rebuilding databases");
             }
-            if (request.SiteMap)
+            finally
             {
-                await RebuildSiteMap();
+                await _pointsOfInterestRepository.StoreRebuildContext(rebuildContext);
             }
+            
         }
 
-        private async Task RebuildPointsOfInterest()
+        private async Task RebuildPointsOfInterest(RebuildContext rebuildContext)
         {
             _logger.LogInformation("Starting rebuilding POIs database.");
-            var osmSource = _pointsOfInterestAdapterFactory.GetBySource(Sources.OSM);
-            var osmFeaturesTask = osmSource.GetPointsForIndexing();
-            var sources = _pointsOfInterestAdapterFactory.GetAll().Where(s => s.Source != Sources.OSM).Select(s => s.Source);
-            var otherTasks = sources.Select(s => _elasticSearchGateway.GetExternalPoisBySource(s)).ToArray();
-            await Task.WhenAll(new Task[] { osmFeaturesTask }.Concat(otherTasks));
-            var features = _featuresMergeExecutor.Merge(osmFeaturesTask.Result.Concat(otherTasks.SelectMany(t => t.Result)).ToList());
-            await _elasticSearchGateway.UpdatePointsOfInterestZeroDownTime(features);
+            var osmFeaturesTask = _pointsOfInterestProvider.GetAll();
+            var sources = _pointsOfInterestAdapterFactory.GetAll().Select(s => s.Source);
+            var externalFeatures = sources.Select(s => _externalSourcesRepository.GetExternalPoisBySource(s)).SelectMany(t => t.Result).ToList();
+            var features = _featuresMergeExecutor.Merge(osmFeaturesTask.Result, externalFeatures);
+            _logger.LogInformation("Adding deleted features to new ones");
+            var exitingFeatures = await _pointsOfInterestRepository.GetAllPointsOfInterest(true);
+            var newFeaturesDictionary = features.ToDictionary(f => f.GetId(), f => f);
+            var deletedFeatures = exitingFeatures.Where(f => f.GetLastModified() <= rebuildContext.StartTime && !newFeaturesDictionary.ContainsKey(f.GetId())).ToArray();
+            foreach (var deletedFeatureToMark in deletedFeatures)
+            {
+                if (!deletedFeatureToMark.Attributes.Exists(FeatureAttributes.POI_DELETED))
+                {
+                    deletedFeatureToMark.Attributes.Add(FeatureAttributes.POI_DELETED, true);
+                    deletedFeatureToMark.SetLastModified(DateTime.Now);
+                    _logger.LogDebug("Removed feature id: " + deletedFeatureToMark.GetId());
+                }
+            }
+            _logger.LogInformation("Added deleted features to new ones: " + deletedFeatures.Length);
+            await _pointsOfInterestRepository.StorePointsOfInterestDataToSecondaryIndex(features.Concat(deletedFeatures).ToList());
+            _logger.LogInformation("Getting all features added since rebuild started: " + rebuildContext.StartTime.ToLongTimeString());
+            var addedFeaturesAfterRebuildStart = await _pointsOfInterestRepository.GetPointsOfInterestUpdates(rebuildContext.StartTime);
+            _logger.LogInformation("Got all features added since rebuild started: " + addedFeaturesAfterRebuildStart.Count);
+            await _pointsOfInterestRepository.StorePointsOfInterestDataToSecondaryIndex(addedFeaturesAfterRebuildStart);
+            _logger.LogInformation("Finished storing all features");
+            await _pointsOfInterestRepository.SwitchPointsOfInterestIndices();
             _logger.LogInformation("Finished rebuilding POIs database.");
         }
 
         private async Task RebuildHighways()
         {
             _logger.LogInformation("Starting rebuilding highways database.");
-            using (var stream = _latestFileFetcherExecutor.Get())
-            {
-                var osmHighways = await _osmRepository.GetAllHighways(stream);
-                var geoJsonHighways = _osmGeoJsonPreprocessorExecutor.Preprocess(osmHighways);
-                await _elasticSearchGateway.UpdateHighwaysZeroDownTime(geoJsonHighways);
-            }
+            using var stream = _osmLatestFileFetcherExecutor.Get();
+            var osmHighways = await _osmRepository.GetAllHighways(stream);
+            var geoJsonHighways = _osmGeoJsonPreprocessorExecutor.Preprocess(osmHighways);
+            await _highwaysRepository.UpdateHighwaysZeroDownTime(geoJsonHighways);
 
             _logger.LogInformation("Finished rebuilding highways database.");
         }
@@ -203,26 +269,43 @@ namespace IsraelHiking.API.Services.Osm
         private async Task RebuildImages()
         {
             _logger.LogInformation("Starting rebuilding images database.");
-            using (var stream = _latestFileFetcherExecutor.Get())
-            {
-                var features = await _elasticSearchGateway.GetAllPointsOfInterest();
-                var featuresUrls = features.SelectMany(f =>
-                    f.Attributes.GetNames()
-                    .Where(n => n.StartsWith(FeatureAttributes.IMAGE_URL))
-                    .Select(k => f.Attributes[k].ToString())
-                );
-                var urls = await _osmRepository.GetImagesUrls(stream);
-                await _imagesUrlsStorageExecutor.DownloadAndStoreUrls(urls.Union(featuresUrls).ToList());
-            }
+            using var stream = _osmLatestFileFetcherExecutor.Get();
+            var features = await _pointsOfInterestRepository.GetAllPointsOfInterest(false);
+            var featuresUrls = features.SelectMany(f =>
+                f.Attributes.GetNames()
+                .Where(n => n.StartsWith(FeatureAttributes.IMAGE_URL))
+                .Select(k => f.Attributes[k].ToString())
+            );
+            var urls = await _osmRepository.GetImagesUrls(stream);
+            await _imagesUrlsStorageExecutor.DownloadAndStoreUrls(urls.Union(featuresUrls).ToList());
             _logger.LogInformation("Finished rebuilding images database.");
         }
 
         private async Task RebuildSiteMap()
         {
             _logger.LogInformation("Starting rebuilding sitemap.");
-            var features = await _elasticSearchGateway.GetAllPointsOfInterest();
-            _pointsOfInterestFilesCreatorExecutor.Create(features);
+            var features = await _pointsOfInterestRepository.GetAllPointsOfInterest(false);
+            _pointsOfInterestFilesCreatorExecutor.CreateSiteMapXmlFile(features);
             _logger.LogInformation("Finished rebuilding sitemap.");
+        }
+
+        private async Task RebuildOfflinePoisFile(RebuildContext context)
+        {
+            _logger.LogInformation($"Starting rebuilding offline pois file for date: {context.StartTime.ToInvariantString()}");
+            var features = await _pointsOfInterestRepository.GetAllPointsOfInterest(false);
+            features = features.Where(f => f.GetLastModified() <= context.StartTime).ToList();
+            _pointsOfInterestFilesCreatorExecutor.CreateOfflinePoisFile(features);
+            _logger.LogInformation("Finished rebuilding offline pois file.");
+        }
+
+        private async Task UpdateExternalSources()
+        {
+            _logger.LogInformation("Starting updating external sources.");
+            foreach (var source in _pointsOfInterestAdapterFactory.GetAll().Select(s => s.Source))
+            {
+                await _externalSourceUpdaterExecutor.UpdateSource(source);
+            }
+            _logger.LogInformation("Finished updating external sources.");
         }
     }
 }
