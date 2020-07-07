@@ -319,6 +319,7 @@ export class PoiService {
             for (let categoriesGroup of this.ngRedux.getState().layersState.categoriesGroups) {
                 let categories = await this.httpClient.get(Urls.poiCategories + categoriesGroup.type)
                     .pipe(timeout(10000)).toPromise() as Category[];
+                categories = categories.filter(c => c.name === "Viewpoint" || c.name === "Water")
                 let visibility = categoriesGroup.visible;
                 if (this.runningContextService.isIFrame) {
                     this.ngRedux.dispatch(new SetCategoriesGroupVisibilityAction({

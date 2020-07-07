@@ -104,11 +104,11 @@ export const initialState =
                 type: "Points of Interest",
                 categories: [],
                 visible: true
-            },
-            {
-                type: "Routes",
-                categories: [],
-                visible: true
+            //},
+            //{
+            //    type: "Routes",
+            //    categories: [],
+            //    visible: true
             }]
         },
         userState: {
