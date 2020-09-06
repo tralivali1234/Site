@@ -172,6 +172,8 @@ export class LayersSidebarComponent extends BaseMapComponent {
             this.toastService.success(this.resources.allFilesAreUpToDate + " " + this.resources.useTheCloudIconToGoOffline);
             return;
         }
+        this.loggingService.info("Starting downloading offline files, last update: " +
+            this.ngRedux.getState().offlineState.lastModifiedDate);
         this.toastService.progress({
             action: (progress) => this.downloadOfflineFilesProgressAction(progress, fileNames),
             showContinueButton: true,
@@ -193,24 +195,18 @@ export class LayersSidebarComponent extends BaseMapComponent {
                 let fileName = Object.keys(fileNames)[fileNameIndex];
                 let fileDate = new Date(fileNames[fileName]);
                 newestFileDate = fileDate > newestFileDate ? fileDate : newestFileDate;
-                let fileContent = await this.fileService.getFileContentWithProgress(`${Urls.offlineFiles}/${fileName}`,
-                    (value) => reportProgress((50.0 / length) * value +
-                        fileNameIndex * 100.0 / length));
+                let token = this.ngRedux.getState().userState.token;
                 if (fileName.endsWith(".mbtiles")) {
                     await this.databaseService.closeDatabase(fileName.replace(".mbtiles", ""));
-                    await this.fileService.saveToDatabasesFolder(fileContent as Blob, fileName);
+                    await this.fileService.downloadDatabaseFile(`${Urls.offlineFiles}/${fileName}`, fileName, token,
+                        (value) => reportProgress((value + fileNameIndex) * 100.0 / length));
+                    this.loggingService.info(`Finished downloading ${fileName}`);
                 } else {
-                    await this.fileService.openIHMfile(fileContent as Blob,
-                        async (content: string) => {
-                            await this.databaseService.storePois(JSON.parse(content).features);
-                        },
-                        async (content, percentage) => {
-                            await this.databaseService.storeImages(JSON.parse(content));
-                            reportProgress(this.getFileInstallationProgress(length, fileNameIndex, percentage));
-                        }
-                    );
+                    let fileContent = await this.fileService.getFileContentWithProgress(`${Urls.offlineFiles}/${fileName}`,
+                        (value) => reportProgress((value + fileNameIndex) * 100.0 / length));
+                    this.loggingService.info(`Finished downloading ${fileName}`);
+                    await this.fileService.writeStyles(fileContent as Blob);
                 }
-                reportProgress(this.getFileInstallationProgress(length, fileNameIndex, 100));
             }
             this.loggingService.info("Finished downloading offline files, update date to: " + newestFileDate.toUTCString());
             this.ngRedux.dispatch(new SetOfflineLastModifiedAction({ lastModifiedDate: newestFileDate }));
@@ -221,11 +217,6 @@ export class LayersSidebarComponent extends BaseMapComponent {
                 this.ngRedux.dispatch(new ToggleOfflineAction({ key: this.layersService.getSelectedBaseLayer().key, isOverlay: false }));
             }
         }
-    }
-
-    private getFileInstallationProgress(numberOfFile: number, fileNameIndex: number, percentage: number) {
-        return (0.5 / numberOfFile) * (percentage) +
-            (fileNameIndex * 2 + 1) * 50.0 / numberOfFile;
     }
 
     private async getFilesToDownloadDictionary(): Promise<{}> {

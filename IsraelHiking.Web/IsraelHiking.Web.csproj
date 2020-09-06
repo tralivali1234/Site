@@ -67,6 +67,7 @@
     <Content Include="IsraelHiking.Web.nlog">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <None Include="sources\content\legend\legend.json" />
     <None Include="angular.json" />
     <None Include="package-lock.json" />
     <None Include="package.json" />
@@ -94,7 +95,7 @@
     <PackageReference Include="NetTopologySuite" Version="2.0.0" />
     <PackageReference Include="NetTopologySuite.IO" Version="1.15.0-pre032" />
     <PackageReference Include="NetTopologySuite.IO.GeoJSON" Version="2.0.2" />
-    <PackageReference Include="NetTopologySuite.IO.GPX" Version="1.1.0" />
+    <PackageReference Include="NetTopologySuite.IO.GPX" Version="1.1.1" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
     <PackageReference Include="NLog.Web.AspNetCore" Version="4.9.2" />
     <PackageReference Include="OAuth.DotNetCore" Version="3.0.1" />
@@ -118,6 +119,6 @@
     <ProjectReference Include="..\IsraelHiking.DataAccess\IsraelHiking.DataAccess.csproj" />
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="if not exist $(OutDir)PointsOfInterest mkdir PointsOfInterest $(OutDir)PointsOfInterest" />
+    <MakeDir Directories="$(OutDir)PointsOfInterest" />
   </Target>
 </Project>

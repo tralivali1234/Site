@@ -1,6 +1,5 @@
 Set-Location -Path "$($env:APPVEYOR_BUILD_FOLDER)/IsraelHiking.Web"
 
-
 #Replace version in config.xml file
 $filePath = get-ChildItem config.xml | Select-Object -first 1 | select -expand FullName
 $xml = New-Object XML
@@ -62,9 +61,15 @@ Write-Host "npm run build-ipa"
 npm run build-ipa
 
 $preVersionIpaLocation = "./platforms/ios/build/device/Israel Hiking Map.ipa";
-$ipaVersioned = "./platforms/ios/build/device/IHM_signed_$env:APPVEYOR_BUILD_VERSION.ipa"
+$ipaVersioned = "./IHM_signed_$env:APPVEYOR_BUILD_VERSION.ipa"
 
-Rename-Item -Path $preVersionIpaLocation -NewName "IHM_signed_$env:APPVEYOR_BUILD_VERSION.ipa"
+Copy-Item -Path $preVersionIpaLocation -Destination "./IHM_signed_$env:APPVEYOR_BUILD_VERSION.ipa"
+
+if ($env:APPVEYOR_REPO_TAG -eq "true")
+{
+	Write-Host "Uploading package to the apple app store"
+	xcrun altool --upload-app --type ios --file $ipaVersioned --username $env:TMS_USER --password $env:TMS_APPLE_APPLICATION_SPECIFIC_PASSWORD
+}
 
 if (-not (Test-Path -Path $ipaVersioned)) {
 	throw "Failed to create ios ipa file"

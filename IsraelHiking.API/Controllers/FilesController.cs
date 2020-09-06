@@ -4,6 +4,7 @@ using IsraelHiking.Common.DataContainer;
 using IsraelHiking.Common.Extensions;
 using IsraelHiking.Common.FileExplorer;
 using IsraelHiking.DataAccessInterfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
@@ -115,7 +116,7 @@ namespace IsraelHiking.API.Controllers
         /// <returns>A byte representation of file in the converted format</returns>
         [HttpPost]
         // POST api/files?format=gpx
-        public Task<byte[]> PostSaveFile(string format, [FromBody]DataContainerPoco dataContainer)
+        public Task<byte[]> PostConvertFile(string format, [FromBody]DataContainerPoco dataContainer)
         {
             return _dataContainerConverterService.ToAnyFormat(dataContainer, format);
         }
@@ -143,7 +144,9 @@ namespace IsraelHiking.API.Controllers
         private async Task<DataContainerPoco> ConvertToDataContainer(byte[] data, string fileName)
         {
             var dataContainer = await _dataContainerConverterService.ToDataContainer(data, fileName);
-            foreach (var latLng in dataContainer.Routes.SelectMany(routeData => routeData.Segments.SelectMany(routeSegmentData => routeSegmentData.Latlngs)))
+            foreach (var latLng in dataContainer.Routes.SelectMany(routeData => routeData.Segments
+                    .SelectMany(routeSegmentData => routeSegmentData.Latlngs)
+                ).Where(l => l.Alt.HasValue == false || l.Alt == 0))
             {
                 latLng.Alt = await _elevationDataStorage.GetElevation(latLng.ToCoordinate());
             }
@@ -154,13 +157,13 @@ namespace IsraelHiking.API.Controllers
         /// Get a list of files that need to be downloaded since they are out dated
         /// </summary>
         /// <param name="lastModified"></param>
-        /// <param name="mbTiles"></param>
         /// <returns></returns>
         [HttpGet]
         [Route("offline")]
-        public Task<Dictionary<string, DateTime>> GetOfflineFiles([FromQuery] DateTime lastModified, [FromQuery] bool mbTiles = false)
+        [Authorize]
+        public Task<Dictionary<string, DateTime>> GetOfflineFiles([FromQuery] DateTime lastModified)
         {
-            return _offlineFilesService.GetUpdatedFilesList(User.Identity.Name ?? "", lastModified, mbTiles);
+            return _offlineFilesService.GetUpdatedFilesList(User.Identity.Name, lastModified);
         }
 
         /// <summary>
@@ -170,9 +173,10 @@ namespace IsraelHiking.API.Controllers
         /// <returns></returns>
         [HttpGet]
         [Route("offline/{id}")]
+        [Authorize]
         public async Task<IActionResult> GetOfflineFile(string id)
         {
-            var file = await _offlineFilesService.GetFileContent(User.Identity.Name ?? "", id);
+            var file = await _offlineFilesService.GetFileContent(User.Identity.Name, id);
             return File(file, "application/zip", id);
         }
     }

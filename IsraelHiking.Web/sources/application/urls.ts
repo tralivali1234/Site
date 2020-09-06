@@ -18,6 +18,7 @@ export class Urls {
     public static readonly osm = Urls.apiBase + "osm/";
     public static readonly osmConfiguration = Urls.osm + "configuration";
     public static readonly osmTrace = Urls.osm + "trace/";
+    public static readonly osmTraceRoute = Urls.osmTrace + "route";
     public static readonly osmUser = Urls.osm + "details/";
     public static readonly userLayers = Urls.apiBase + "userLayers/";
     public static readonly poi = Urls.apiBase + "poi/";
@@ -25,7 +26,7 @@ export class Urls {
     public static readonly poiClosest = Urls.poi + "closest/";
     public static readonly poiUpdates = Urls.poi + "updates/";
     public static readonly poiSimple = Urls.poi + "simple/";
-    public static readonly poisOfflineFile = Urls.baseAddress + "/PointsOfInterest/offline-pois.zip";
+    public static readonly poisOfflineFile = Urls.baseAddress + "/PointsOfInterest/pois.zip";
 
     public static readonly facebook = "http://www.facebook.com/sharer/sharer.php?u=";
     public static readonly waze = "https://www.waze.com/ul?navigate=yes&zoom=17&ll=";

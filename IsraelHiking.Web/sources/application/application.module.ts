@@ -61,6 +61,7 @@ import { Device } from "@ionic-native/device/ngx";
 import { SQLite } from "@ionic-native/sqlite/ngx";
 import { AppVersion } from "@ionic-native/app-version/ngx";
 import { Media } from "@ionic-native/media/ngx";
+import { FileTransfer } from "@ionic-native/file-transfer/ngx";
 // services
 import { GetTextCatalogService } from "./services/gettext-catalog.service";
 import { AuthorizationService } from "./services/authorization.service";
@@ -105,6 +106,7 @@ import { PurchaseService } from "./services/purchase.service";
 import { ApplicationInitializeService } from "./services/application-initialize.service";
 import { DeviceOrientationService } from "./services/device-orientation.service";
 import { RecordedRouteService } from "./services/recorded-route.service";
+import { NavigateHereService } from "./services/navigate-here.service";
 import { AudioPlayerFactory } from "./services/audio-player.factory";
 import { GlobalErrorHandler } from "./services/global-error.handler";
 // interactions
@@ -183,8 +185,7 @@ export function initializeApplication(injector: Injector) {
 
 export function getWindow() { return window; }
 
-@
-    NgModule({
+@NgModule({
         imports: [
             CommonModule,
             BrowserModule,
@@ -316,6 +317,7 @@ export function getWindow() { return window; }
             ApplicationInitializeService,
             DeviceOrientationService,
             RecordedRouteService,
+            NavigateHereService,
             AudioPlayerFactory,
             BackgroundGeolocation,
             Brightness,
@@ -332,6 +334,8 @@ export function getWindow() { return window; }
             SQLite,
             AppVersion,
             Media,
+            // tslint:disable-next-line
+            FileTransfer,
             RouteEditPoiInteraction,
             RouteEditRouteInteraction
         ],

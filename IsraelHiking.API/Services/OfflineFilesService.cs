@@ -30,16 +30,24 @@ namespace IsraelHiking.API.Services
             IOptions<NonPublicConfigurationData> options,
             ILogger logger)
         {
-            _fileProvider = new PhysicalFileProvider(options.Value.OfflineFilesFolder);
+            _logger = logger;
+            if (string.IsNullOrEmpty(options.Value.OfflineFilesFolder))
+            {
+                _logger.LogWarning("offlineFilesFolder was not provided! This mean you won't be able to use this service");
+            }
+            else
+            {
+                _fileProvider = new PhysicalFileProvider(options.Value.OfflineFilesFolder);
+            }
+            
             _fileSystemHelper = fileSystemHelper;
             _receiptValidationGateway = receiptValidationGateway;
-            _logger = logger;
         }
 
         /// <inheritdoc/>
-        public async Task<Dictionary<string, DateTime>> GetUpdatedFilesList(string userId, DateTime lastModifiedDate, bool mbTiles)
+        public async Task<Dictionary<string, DateTime>> GetUpdatedFilesList(string userId, DateTime lastModifiedDate)
         {
-            _logger.LogInformation($"Getting the list of offline files for user: {userId}, mbtiles: {mbTiles}, date: {lastModifiedDate}");
+            _logger.LogInformation($"Getting the list of offline files for user: {userId}, date: {lastModifiedDate}");
             var filesDictionary = new Dictionary<string, DateTime>();
             if (!await _receiptValidationGateway.IsEntitled(userId))
             {
@@ -56,9 +64,7 @@ namespace IsraelHiking.API.Services
                 {
                     continue;
                 }
-                // HM TODO: 03.2020 - remove this when all requests are sending mbtiles true
-                if ((mbTiles && (content.Name.EndsWith(".mbtiles") || content.Name.StartsWith("style"))) ||
-                    !mbTiles && content.Name.EndsWith(".ihm"))
+                if (content.Name.EndsWith(".mbtiles") || content.Name.StartsWith("style"))
                 {
                     filesDictionary[content.Name] = content.LastModified.DateTime;
                 }

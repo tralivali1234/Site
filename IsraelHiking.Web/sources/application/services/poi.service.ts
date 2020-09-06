@@ -4,6 +4,7 @@ import { NgRedux, select } from "@angular-redux/store";
 import { uniq } from "lodash";
 import { Observable, fromEvent } from "rxjs";
 import { timeout, throttleTime } from "rxjs/operators";
+import JSZip from "jszip";
 
 import { ResourcesService } from "./resources.service";
 import { HashService, IPoiRouterData } from "./hash.service";
@@ -207,13 +208,15 @@ export class PoiService {
                 .pipe(timeout(120000)).toPromise() as IUpdatesResponse;
             this.loggingService.info(`[POIs] Storing POIs for: ${lastModified.toUTCString()}, got: ${updates.features.length}`);
             let deletedIds = updates.features.filter(f => f.properties.poiDeleted).map(f => f.properties.poiId);
-            this.databaseService.storePois(updates.features);
+            do {
+                await this.databaseService.storePois(updates.features.splice(0, 500));
+            } while (updates.features.length > 0);
             this.databaseService.deletePois(deletedIds);
             this.loggingService.info(`[POIs] Updating last modified to: ${updates.lastModified}`);
             this.ngRedux.dispatch(new SetOfflinePoisLastModifiedDateAction({ lastModifiedDate: updates.lastModified }));
-            this.loggingService.info(`[POIs] Updating POIs for clustering from database: ${updates.features.length}`);
+            this.loggingService.info(`[POIs] Getting POIs for clustering from database`);
             await this.rebuildPois();
-            this.loggingService.info(`[POIs] Updated pois for clustering: ${this.poisGeojson.features.length}`);
+            this.loggingService.info(`[POIs] Got POIs for clustering: ${this.poisGeojson.features.length}`);
             let imageAndData = this.imageItemToUrl(updates.images);
             this.loggingService.info(`[POIs] Storing images: ${imageAndData.length}`);
             this.databaseService.storeImages(imageAndData);
@@ -224,7 +227,6 @@ export class PoiService {
 
     private async downlodOfflineFileAndUpdateDatabase(progressCallback: (value: number, text?: string) => void): Promise<void> {
         progressCallback(1, this.resources.downloadingPoisForOfflineUsage);
-        let lastModified = null;
         let poiIdsToDelete = this.poisGeojson.features.map(f => f.properties.poiId);
         this.loggingService.info(`[POIs] Deleting exiting pois: ${poiIdsToDelete.length}`);
         await this.databaseService.deletePois(poiIdsToDelete);
@@ -232,19 +234,47 @@ export class PoiService {
         let poisFile = await this.fileService.getFileContentWithProgress(Urls.poisOfflineFile,
             (value) => progressCallback(1 + value * 49, this.resources.downloadingPoisForOfflineUsage));
         this.loggingService.info(`[POIs] Finished downloading pois file, opening it`);
-        await this.fileService.openIHMfile(poisFile, async (poisString: string) => {
-            let poisJson = JSON.parse(poisString) as GeoJSON.FeatureCollection;
-            await this.databaseService.storePois(poisJson.features);
-            lastModified = this.getLastModifiedFromFeatures(poisJson.features);
-            progressCallback(55, this.resources.downloadingPoisForOfflineUsage);
-        }, async (imagesString: string, progressPercentage: number) => {
-            let imagesUrl = this.imageItemToUrl(JSON.parse(imagesString) as IImageItem[]);
-            await this.databaseService.storeImages(imagesUrl);
-            progressCallback(progressPercentage * 0.45 + 55, this.resources.downloadingPoisForOfflineUsage);
-        });
+        let lastModified = await this.openPoisFile(poisFile, progressCallback);
         this.loggingService.info(`[POIs] Updating last modified to: ${lastModified}`);
         this.ngRedux.dispatch(new SetOfflinePoisLastModifiedDateAction({ lastModifiedDate: lastModified }));
         this.loggingService.info(`[POIs] Finished downloading file and updating database, last modified: ${lastModified.toUTCString()}`);
+    }
+
+    public async openPoisFile(blob: Blob, progressCallback: (percentage: number, text?: string) => void): Promise<Date> {
+        let zip = new JSZip();
+        await zip.loadAsync(blob);
+        await this.writeImages(zip, progressCallback);
+        this.loggingService.info(`[POIs] Finished saving images to database`);
+        return await this.writePois(zip, progressCallback);
+    }
+
+    private async writePois(zip: JSZip, progressCallback: (percentage: number, content: string) => void): Promise<Date> {
+        let lastModified = new Date(0);
+        let poisFileNames = Object.keys(zip.files).filter(name => name.startsWith("pois/") && name.endsWith(".geojson"));
+        for (let poiFileIndex = 0; poiFileIndex < poisFileNames.length; poiFileIndex++) {
+            let poisFileName = poisFileNames[poiFileIndex];
+            let poisJson = JSON.parse((await zip.file(poisFileName).async("text")).trim()) as GeoJSON.FeatureCollection;
+            let chunkLastModified = this.getLastModifiedFromFeatures(poisJson.features);
+            if (chunkLastModified > lastModified) {
+                lastModified = chunkLastModified;
+            }
+            await this.databaseService.storePois(poisJson.features);
+            progressCallback(((poiFileIndex + 1) * 10.0 / poisFileNames.length) + 90, this.resources.downloadingPoisForOfflineUsage);
+            this.loggingService.debug(`[POIs] Stored pois ${poisFileName} ${poiFileIndex}/${poisFileNames.length}`);
+        }
+        return lastModified;
+    }
+
+    private async writeImages(zip: JSZip, progressCallback: (percentage: number, content: string) => void) {
+        let imagesFileNames = Object.keys(zip.files).filter(name => name.startsWith("images/") && name.endsWith(".json"));
+        for (let imagesFileIndex = 0; imagesFileIndex < imagesFileNames.length; imagesFileIndex++) {
+            let imagesFile = imagesFileNames[imagesFileIndex];
+            let imagesJson = JSON.parse(await zip.file(imagesFile).async("text") as string) as IImageItem[];
+            let imagesUrl = this.imageItemToUrl(imagesJson);
+            await this.databaseService.storeImages(imagesUrl);
+            progressCallback((imagesFileIndex + 1) * 40.0 / imagesFileNames.length + 50, this.resources.downloadingPoisForOfflineUsage);
+            this.loggingService.debug(`[POIs] Stored images ${imagesFile} ${imagesFileIndex}/${imagesFileNames.length}`);
+        }
     }
 
     private getLastModifiedFromFeatures(features: GeoJSON.Feature[]): Date {
@@ -452,6 +482,7 @@ export class PoiService {
         // references = uniqWith(references, (a, b) => a.url === b.url);
         let references = []; // no references due to offline.
         let description = f.properties["description:" + language] || f.properties.description;
+        let externalDescription = f.properties["poiExternalDescription:" + language] || f.properties.poiExternalDescription;
         let poi = {
             id: f.properties.identifier,
             category: f.properties.poiCategory,
@@ -485,6 +516,7 @@ export class PoiService {
             },
             imagesUrls,
             description,
+            externalDescription,
             title: Array.isArray(f.properties.poiNames[language]) && f.properties.poiNames[language].length !== 0
                 ? f.properties.poiNames[language][0]
                 : Array.isArray(f.properties.poiNames.all) && f.properties.poiNames.all.length !== 0

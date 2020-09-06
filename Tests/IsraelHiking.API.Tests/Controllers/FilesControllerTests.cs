@@ -88,7 +88,7 @@ namespace IsraelHiking.API.Tests.Controllers
         }
 
         [TestMethod]
-        public void PostSaveFile_ConvertToGpx_ShouldReturnByteArray()
+        public void PostConvertFile_ConvertToGpx_ShouldReturnByteArray()
         {
             var dataContainer = new DataContainerPoco
             {
@@ -113,7 +113,7 @@ namespace IsraelHiking.API.Tests.Controllers
             };
             var expectedGpx = _gpxDataContainerConverter.ToGpx(dataContainer);
 
-            var bytes = _controller.PostSaveFile("gpx", dataContainer).Result;
+            var bytes = _controller.PostConvertFile("gpx", dataContainer).Result;
 
             
             CollectionAssert.AreEqual(expectedGpx.ToBytes(), bytes);
@@ -144,6 +144,7 @@ namespace IsraelHiking.API.Tests.Controllers
             Assert.AreEqual(6, dataContainer.Routes.First().Segments.First().Latlngs.Count);
             Assert.AreEqual(1, dataContainer.Routes.First().Markers.Count);
             Assert.IsTrue(dataContainer.Routes.SelectMany(r => r.Segments.SelectMany(s => s.Latlngs)).All(l => l.Alt != 0));
+            Assert.AreEqual(1, dataContainer.Routes.SelectMany(r => r.Segments.SelectMany(s => s.Latlngs)).Count(l => l.Alt == 1));
         }
     }
 }

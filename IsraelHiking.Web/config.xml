@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<widget id="northarrow.il.org.osm.israelhiking" version="9.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:android="http://schemas.android.com/apk/res/android" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+<widget id="northarrow.il.org.osm.israelhiking" version="9.3.0" xmlns="http://www.w3.org/ns/widgets" xmlns:android="http://schemas.android.com/apk/res/android" xmlns:cdv="http://cordova.apache.org/ns/1.0">
   <name>חץ הצפון</name>
   <description>An application for outdoor navigation.</description>
   <author email="IsraelHikingMap@gmail.com" href="http://israelhiking.osm.org.il">Israel Hiking Map</author>
@@ -12,9 +12,17 @@
   <allow-intent href="mailto:*" />
   <allow-intent href="geo:*" />
   <allow-intent href="whatsapp:*" />
+  <universal-links>
+    <host name="israelhiking.osm.org.il" scheme="https">
+      <ios-team-id value="2KT88923M5" />
+      <path event="share" url="/share/*" />
+      <path event="poi" url="/poi/*" />
+      <path event="url" url="/url/*" />
+    </host>
+  </universal-links>
   <platform name="android">
     <allow-intent href="market:*" />
-    <preference name="android-targetSdkVersion" value="28" />
+    <preference name="android-targetSdkVersion" value="29" />
     <preference name="android-minSdkVersion" value="21" />
     <preference name="AndroidLaunchMode" value="singleInstance" />
     <icon density="ldpi" src="www/content/favicons/android-chrome-36x36.png" />
@@ -27,6 +35,12 @@
       <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     </edit-config>
     <config-file parent="/manifest/application/activity" target="AndroidManifest.xml">
+      <intent-filter>
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="image/jpeg" />
+        <data android:mimeType="image/jpg" />
+      </intent-filter>
       <intent-filter>
         <action android:name="android.intent.action.VIEW" />
         <category android:name="android.intent.category.DEFAULT" />
@@ -59,44 +73,72 @@
         <data android:mimeType="image/jpg" />
       </intent-filter>
       <intent-filter>
-        <action android:name="android.intent.action.SEND" />
+        <action android:name="android.intent.action.VIEW" />
         <category android:name="android.intent.category.DEFAULT" />
-        <data android:mimeType="image/jpeg" />
-        <data android:mimeType="image/jpg" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="http" android:host="*" android:pathPattern=".*\.gpx" />
       </intent-filter>
       <intent-filter>
         <action android:name="android.intent.action.VIEW" />
         <category android:name="android.intent.category.DEFAULT" />
         <category android:name="android.intent.category.BROWSABLE" />
-        <data android:host="*" android:scheme="http" />
-        <data android:host="*" android:scheme="https" />
-        <data android:host="*" android:scheme="content" />
-        <data android:host="*" android:scheme="file" />
-        <data android:host="*" android:pathPattern=".*\.gpx" />
-        <data android:host="*" android:pathPattern=".*\..*\.gpx" />
-        <data android:host="*" android:pathPattern=".*\..*\..*\.gpx" />
-        <data android:host="*" android:pathPattern=".*\..*\..*\..*\.gpx" />
-        <data android:host="*" android:pathPattern=".*\.kml" />
-        <data android:host="*" android:pathPattern=".*\..*\.kml" />
-        <data android:host="*" android:pathPattern=".*\..*\..*\.kml" />
-        <data android:host="*" android:pathPattern=".*\..*\..*\..*\.kml" />
-        <data android:host="*" android:pathPattern=".*\.kmz" />
-        <data android:host="*" android:pathPattern=".*\..*\.kmz" />
-        <data android:host="*" android:pathPattern=".*\..*\..*\.kmz" />
-        <data android:host="*" android:pathPattern=".*\..*\..*\..*\.kmz" />
-        <data android:host="*" android:pathPattern=".*\.twl" />
-        <data android:host="*" android:pathPattern=".*\..*\.twl" />
-        <data android:host="*" android:pathPattern=".*\..*\..*\.twl" />
-        <data android:host="*" android:pathPattern=".*\..*\..*\..*\.twl" />
-        <data android:host="*" android:pathPattern=".*\.jpg" />
-        <data android:host="*" android:pathPattern=".*\..*\.jpg" />
-        <data android:host="*" android:pathPattern=".*\..*\..*\.jpg" />
-        <data android:host="*" android:pathPattern=".*\..*\..*\..*\.jpg" />
-        <data android:host="*" android:pathPattern=".*\.jpeg" />
-        <data android:host="*" android:pathPattern=".*\..*\.jpeg" />
-        <data android:host="*" android:pathPattern=".*\..*\..*\.jpeg" />
-        <data android:host="*" android:pathPattern=".*\..*\..*\..*\.jpeg" />
+        <data android:scheme="https" android:host="*" android:pathPattern=".*\.gpx" />
       </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="http" android:host="*" android:pathPattern=".*\.kml" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="https" android:host="*" android:pathPattern=".*\.kml" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="http" android:host="*" android:pathPattern=".*\.kmz" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="https" android:host="*" android:pathPattern=".*\.kmz" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:mimeType="*/*" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\.gpx" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\..*\.gpx" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\..*\..*\.gpx" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\..*\..*\..*\.gpx" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\.kml" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\..*\.kml" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\..*\..*\.kml" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\..*\..*\..*\.kml" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\.kmz" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\..*\.kmz" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\..*\..*\.kmz" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\..*\..*\..*\.kmz" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\.twl" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\..*\.twl" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\..*\..*\.twl" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\..*\..*\..*\.twl" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\.jpg" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\..*\.jpg" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\..*\..*\.jpg" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\..*\..*\..*\.jpg" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\.jpeg" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\..*\.jpeg" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\..*\..*\.jpeg" />
+        <data android:scheme="file" android:host="*" android:pathPattern=".*\..*\..*\..*\.jpeg" />
+      </intent-filter>
+      <!-- HM TODO: remove this!
       <intent-filter>
         <action android:name="android.intent.action.VIEW" />
         <category android:name="android.intent.category.DEFAULT" />
@@ -108,6 +150,7 @@
         <data android:host="israelhiking.osm.org.il" android:pathPattern="/" android:scheme="https" />
         <data android:host="israelhiking.osm.org.il" android:pathPattern="" android:scheme="https" />
       </intent-filter>
+      -->
       <intent-filter>
         <action android:name="android.intent.action.VIEW" />
         <category android:name="android.intent.category.DEFAULT" />
@@ -139,13 +182,13 @@
     <preference name="FadeSplashScreenDuration" value="0" />
     <splash src="www/content/favicons/Default@2x~universal~anyany.png" />
     <edit-config target="NSCameraUsageDescription" file="*-Info.plist" mode="merge">
-        <string>We need the camera in order to take a picture</string>
+      <string>We need the camera in order to take a picture</string>
     </edit-config>
     <edit-config target="NSPhotoLibraryUsageDescription" file="*-Info.plist" mode="merge">
-        <string>We need access to the photo library to get pictures from there</string>
+      <string>We need access to the photo library to get pictures from there</string>
     </edit-config>
     <edit-config target="NSPhotoLibraryAddUsageDescription" file="*-Info.plist" mode="merge">
-        <string>We need access to the photo library to save pictures there</string>
+      <string>We need access to the photo library to save pictures there</string>
     </edit-config>
     <edit-config target="NSLocationAlwaysUsageDescription" file="*-Info.plist" mode="merge">
       <string>We need to access your location in order to be able to show it on the map while navigating</string>
