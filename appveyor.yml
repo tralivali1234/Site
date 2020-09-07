@@ -1,4 +1,4 @@
-version: 9.0.{build}
+version: 9.3.{build}
 clone_depth: 3
 configuration: Release
 environment:
@@ -16,13 +16,10 @@ environment:
 install:
 - ps: >-
     Install-Product node 10.15
-
     npm install -g npm@6.9.0 --loglevel=error
-
     npm install -g increase-memory-limit
         
     node --version
-
     npm --version
 for:
   -
@@ -47,11 +44,8 @@ for:
     after_build:
       - ps: >-
             $TestAndPublishWeb = "$env:APPVEYOR_BUILD_FOLDER\Scripts\TestAndPublishWeb.ps1"
-
             Write-Host $TestAndPublishWeb
-
             & "$TestAndPublishWeb"
-
   -
     matrix:
       only:
@@ -59,11 +53,8 @@ for:
     build_script:
     - ps: >-
         $BuildAndPublishAndroid = "$env:APPVEYOR_BUILD_FOLDER\Scripts\BuildAndPublishAndroid.ps1"
-
         Write-Host $BuildAndPublishAndroid
-
         & "$BuildAndPublishAndroid"
-
   -
     matrix:
       only:
@@ -72,9 +63,7 @@ for:
     build_script: 
     - ps: >-
         $BuildAndPublishIOS = "$env:APPVEYOR_BUILD_FOLDER\Scripts\BuildAndPublishIOS.ps1"
-
         Write-Host $BuildAndPublishIOS
-
         & "$BuildAndPublishIOS"
         
 deploy:
