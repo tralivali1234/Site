@@ -58,17 +58,8 @@ export const initialState =
                     maxZoom: 16
                 },
                 {
-                    key: ISRAEL_MTB_MAP,
-                    address: Urls.MTB_TILES_ADDRESS,
-                    isEditable: false,
-                    isOfflineAvailable: true,
-                    isOfflineOn: false,
-                    minZoom: 7,
-                    maxZoom: 16
-                },
-                {
                     key: SATELLITE,
-                    address: "https://israelhiking.osm.org.il/Ortho/{z}/{y}/{x}.jpg",
+                    address: "https://gis.shual.org.il/arcgis/rest/services/MAPS/Orto2015v1/MapServer",
                     isEditable: false,
                     isOfflineAvailable: false,
                     isOfflineOn: false,
@@ -80,16 +71,6 @@ export const initialState =
                 {
                     key: HIKING_TRAILS,
                     address: Urls.DEFAULT_TILES_ADDRESS,
-                    minZoom: 7,
-                    maxZoom: 16,
-                    isOfflineAvailable: true,
-                    isOfflineOn: false,
-                    visible: false,
-                    isEditable: false
-                },
-                {
-                    key: BICYCLE_TRAILS,
-                    address: Urls.MTB_TILES_ADDRESS,
                     minZoom: 7,
                     maxZoom: 16,
                     isOfflineAvailable: true,

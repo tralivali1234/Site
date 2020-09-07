@@ -139,10 +139,7 @@ export class FileService {
     }
 
     public getStyleJsonContent(url: string, isOffline: boolean): Promise<Style> {
-        if (isOffline) {
-            url = last(url.split("/"));
-        }
-        return this.httpClient.get(this.getDataUrl(url)).toPromise() as Promise<Style>;
+        return this.httpClient.get(url).toPromise() as Promise<Style>;
     }
 
     public saveToFile = async (fileName: string, format: string, dataContainer: DataContainer): Promise<boolean> => {

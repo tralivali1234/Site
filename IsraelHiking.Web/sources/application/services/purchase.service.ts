@@ -21,6 +21,8 @@ export class PurchaseService {
     }
 
     public initialize() {
+        this.ngRedux.dispatch(new SetOfflineAvailableAction({ isAvailble: true }));
+        return;
         if (!this.runningContextService.isCordova) {
             return;
         }
