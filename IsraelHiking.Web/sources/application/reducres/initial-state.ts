@@ -64,7 +64,7 @@ export const initialState =
                     isOfflineAvailable: false,
                     isOfflineOn: false,
                     minZoom: 7,
-                    maxZoom: 16
+                    maxZoom: 20
                 }
             ],
             overlays: [
