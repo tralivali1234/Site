@@ -161,6 +161,9 @@ export class AutomaticLayerPresentationComponent extends BaseMapComponent implem
         for (let sourceKey of Object.keys(sources)) {
             if (sources.hasOwnProperty(sourceKey) && this.visible) {
                 let source = sources[sourceKey];
+                if (this.layerData.isOfflineOn || !this.hasInternetAccess) {
+                    (source as any).tiles[0].replace("https://israelhiking.osm.org.il/", `custom://${sourceKey}/`);
+                }
                 if (!this.isBaselayer) {
                     sourceKey = this.layerData.key + "_" + sourceKey;
                 }

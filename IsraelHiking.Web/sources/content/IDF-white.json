@@ -9,15 +9,27 @@
   "sources": {
     "IHM": {
       "type": "vector",
-      "url": "https://israelhiking.osm.org.il/vector/data/v3.json"
+      "tiles": [ "https://israelhiking.osm.org.il/vector/data/v3/{z}/{x}/{y}.pbf" ],
+      "format": "pbf",
+      "pixel_scale": 256,
+      "minzoom": 0,
+      "maxzoom": 14
     },
     "TerrainRGB": {
       "type": "raster-dem",
-      "url": "https://israelhiking.osm.org.il/vector/data/TerrainRGB.json"
+      "tiles": [ "https://israelhiking.osm.org.il/vector/data/TerrainRGB/{z}/{x}/{y}.png" ],
+      "format": "png",
+      "maxzoom": 12,
+      "minzoom": 7
     },
     "Contour": {
       "type": "vector",
-      "url": "https://israelhiking.osm.org.il/vector/data/Contour.json"
+      "tiles": [ "https://israelhiking.osm.org.il/vector/data/Contour/{z}/{x}/{y}.pbf" ],
+      "format": "pbf",
+      "pixel_scale": "256",
+      "maskLevel": "8",
+      "minzoom": 9,
+      "maxzoom": 14
     }
   },
   "sprite": "https://israelhikingmap.github.io/VectorMap/Icons/publish/sprite",
