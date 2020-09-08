@@ -16,6 +16,7 @@ import { FitBoundsService } from "./fit-bounds.service";
 import { SpatialService } from "./spatial.service";
 import { LoggingService } from "./logging.service";
 import { DataContainer } from "../models/models";
+import { style } from "d3";
 
 export interface IFormatViewModel {
     label: string;
@@ -138,8 +139,16 @@ export class FileService {
         return url;
     }
 
-    public getStyleJsonContent(url: string, isOffline: boolean): Promise<Style> {
-        return this.httpClient.get(url).toPromise() as Promise<Style>;
+    public async getStyleJsonContent(url: string, isOffline: boolean): Promise<Style> {
+        if (isOffline) {
+            let fileName = last(url.split("/"));
+            let folder = url.split("/");
+            folder.pop();
+            let styleText = await this.fileSystemWrapper.readAsText(this.fileSystemWrapper.applicationDirectory + "www/" + folder.join("/"), fileName);
+            this.loggingService.debug("got style while offline: " + styleText.length);
+            return JSON.parse(styleText);
+        }
+        return await this.httpClient.get(url).toPromise() as Promise<Style>;
     }
 
     public saveToFile = async (fileName: string, format: string, dataContainer: DataContainer): Promise<boolean> => {
