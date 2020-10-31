@@ -1,0 +1,54 @@
+﻿﻿<div [dir]="resources.direction">
+    <div matDialogTitle>
+        <div>
+           סוג דיווח
+        </div>
+        <div>
+            <button mat-button type="button" matDialogClose tabindex="-1"><i class="fa icon-close"></i></button>
+        </div>
+    </div>
+    <div mat-dialog-content>
+        <div fxLayout="row">
+            <div fxFlex>
+                <button mat-button matDialogClose fxFill class="no-padding" (click)="openPrivatePoiEditDialog('our-forces')" angulartics2On="click" angularticsCategory="POI" angularticsAction="Add cattle grid to OSM">
+                    <i class="fa icon-our-forces" [style.color]="resources.getIconColor('our-forces')"></i><br />
+                    כוחותינו
+                </button>
+            </div>
+            <div fxFlex>
+                <button mat-button matDialogClose fxFill class="no-padding" (click)="openPrivatePoiEditDialog('enemy')" angulartics2On="click" angularticsCategory="POI" angularticsAction="Add cattle grid to OSM">
+                    <i class="fa fa-lg icon-enemy" [style.color]="resources.getIconColor('enemy')"></i><br />
+                    אויב
+                </button>
+            </div>
+        </div>
+        <div fxLayout="row">
+            <div fxFlex>
+                <button mat-button matDialogClose fxFill class="no-padding" (click)="openPrivatePoiEditDialog('stop-hand')" angulartics2On="click" angularticsCategory="POI" angularticsAction="Add parking to OSM">
+                    <i class="fa icon-stop-hand" [style.color]="resources.getIconColor('stop-hand')"></i><br />
+                    מכשול
+                </button>
+            </div>
+            <div fxFlex>
+                <button mat-button matDialogClose fxFill class="no-padding" (click)="openPrivatePoiEditDialog('david-star')" angulartics2On="click" angularticsCategory="POI" angularticsAction="Add open gate to OSM">
+                    <i class="fa icon-david-star" [style.color]="resources.getIconColor('david-star')"></i><br />
+                    נפצעים
+                </button>
+            </div>
+        </div>
+        <div fxLayout="row">
+            <div fxFlex>
+                <button mat-button matDialogClose fxFill class="no-padding" (click)="openPrivatePoiEditDialog('meeting')" angulartics2On="click" angularticsCategory="POI" angularticsAction="Add closed gate to OSM">
+                    <i class="fa icon-meeting" [style.color]="resources.getIconColor('meeting')"></i><br />
+                    חבירה
+                </button>
+            </div>
+            <div fxFlex>
+                <button mat-button matDialogClose fxFill class="no-padding" (click)="openPrivatePoiEditDialog('question')" angulartics2On="click" angularticsCategory="POI" angularticsAction="Add block to OSM">
+                    <i class="fa icon-question" [style.color]="resources.getIconColor('question')"></i><br />
+                    אחר
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

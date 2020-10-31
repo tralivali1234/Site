@@ -5,12 +5,13 @@ import { NgRedux } from "@angular-redux/store";
 
 import { AddPrivatePoiAction, UpdatePrivatePoiAction } from "../../reducres/routes.reducer";
 import { SelectedRouteService } from "../../services/layers/routelayers/selected-route.service";
-import { PrivatePoiEditDialogComponent } from "../dialogs/private-poi-edit-dialog.component";
+import { IPrivatePoiEditDialogComponentData } from "../dialogs/private-poi-edit-dialog.component";
 import { GeoLocationService } from "../../services/geo-location.service";
 import { SnappingService, ISnappingPointResponse } from "../../services/snapping.service";
 import { PoiService } from "../../services/poi.service";
 import { ResourcesService } from "../../services/resources.service";
 import { ApplicationState, MarkerData, LatLngAlt } from "../../models/models";
+import { PrivatePoiCategorySelectDialogComponent } from "../dialogs/private-poi-category-select-dialog.component";
 
 @Injectable()
 export class RouteEditPoiInteraction {
@@ -74,7 +75,14 @@ export class RouteEditPoiInteraction {
         }));
         let selectedRoute = this.selectedRouteService.getSelectedRoute();
         let index = selectedRoute.markers.length - 1;
-        PrivatePoiEditDialogComponent.openDialog(this.matDialog, selectedRoute.markers[index], selectedRoute.id, index);
+        this.matDialog.open(PrivatePoiCategorySelectDialogComponent, {
+            width: "480px",
+            data: {
+                marker: selectedRoute.markers[index],
+                routeId: selectedRoute.id,
+                index
+            } as IPrivatePoiEditDialogComponentData
+        });
     }
 
     private async getSnappingForPoint(latlng: LatLngAlt): Promise<ISnappingPointResponse> {

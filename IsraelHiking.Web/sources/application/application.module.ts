@@ -173,7 +173,7 @@ import { ProgressDialogComponent } from "./components/dialogs/progress-dialog.co
 import { UseAppDialogComponent } from "./components/dialogs/use-app-dialog.component";
 import { CategoriesGroupComponent } from "./components/sidebar/categories-group.component";
 import { AddSimplePoiDialogComponent } from "./components/dialogs/add-simple-poi-dialog.component";
-
+import { PrivatePoiCategorySelectDialogComponent } from "./components/dialogs/private-poi-category-select-dialog.component";
 // variables and functions
 import { routes } from "./routes";
 
@@ -264,7 +264,8 @@ export function getWindow() { return window; }
             ProgressDialogComponent,
             UseAppDialogComponent,
             CategoriesGroupComponent,
-            AddSimplePoiDialogComponent
+            AddSimplePoiDialogComponent,
+            PrivatePoiCategorySelectDialogComponent
         ],
         providers: [
             GestureConfig,
@@ -394,6 +395,7 @@ export function getWindow() { return window; }
             UseAppDialogComponent,
             CategoriesGroupComponent,
             AddSimplePoiDialogComponent,
+            PrivatePoiCategorySelectDialogComponent,
             NameInUseValidatorDirective,
             ImageCaptureDirective,
             OfflineImagePipe

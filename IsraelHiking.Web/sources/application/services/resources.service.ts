@@ -1111,4 +1111,14 @@ export class ResourcesService {
         this.iconsCache.set(icon, character);
         return character;
     }
+
+    public getIconColor(markerType: string): string {
+        if (markerType === "our-forces") {
+            return "blue";
+        }
+        if (markerType === "enemy" || markerType === "david-star") {
+            return "red";
+        }
+        return "black";
+    }
 }

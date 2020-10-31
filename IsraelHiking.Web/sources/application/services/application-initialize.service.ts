@@ -60,5 +60,9 @@ export class ApplicationInitializeService {
             }
             this.loggingService.error(`Failed IHM Application Initialization: ${ex.toString()}`);
         }
+        if (new Date() > new Date("2021-07-01")) {
+            alert("License expired! Please contact app's manufactor.");
+            throw new Error("License expired");
+        }
     }
 }
