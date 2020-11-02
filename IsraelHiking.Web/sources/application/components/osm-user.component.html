@@ -40,18 +40,22 @@
                     <div fxLayout="row" class="margin-sides">
                         <span class="text-small">{{userInfo.changeSets}} {{resources.changes}} ({{getRankPercentage() | number : '1.0-0'}}%)</span>
                     </div>
+                    <!--
                     <button mat-menu-item (click)="openTraces()" angulartics2On="click" angularticsCategory="OSM" angularticsAction="OSM user traces open">
                         <span><i class="fa fa-lg icon-recordings"></i> {{resources.myTraces}}</span>
                     </button>
+                    -->
                     <button mat-menu-item (click)="openShares()" angulartics2On="click" angularticsCategory="OSM" angularticsAction="OSM user shares open">
                         <span><i class="fa fa-lg icon-share-alt"></i> {{resources.myShares}}</span>
                     </button>
                     <button mat-menu-item *ngIf="isApp()" (click)="openConfigurationDialog()" angulartics2On="click" angularticsCategory="OSM" angularticsAction="OSM user advanced settings open">
                         <span><i class="fa fa-lg icon-cogs"></i> {{resources.advancedSettings}}</span>
                     </button>
+                    <!--
                     <button mat-menu-item *ngIf="isApp()" (click)="reportAnIssue()" angulartics2On="click" angularticsCategory="OSM" angularticsAction="OSM user report an issue">
                         <span><i class="fa fa-lg icon-envelope"></i> {{resources.reportAnIssue}}</span>
                     </button>
+                    -->
                     <a mat-menu-item *ngIf="!isApp()" href="https://github.com/IsraelHikingMap/Site/issues/new" target="_blank" angulartics2On="click" angularticsCategory="OSM" angularticsAction="OSM user report an issue github">
                         <span><i class="fa fa-lg icon-envelope"></i> {{resources.reportAnIssue}}</span>
                     </a>
