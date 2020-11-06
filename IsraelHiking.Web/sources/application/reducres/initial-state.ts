@@ -8,7 +8,7 @@ import {
 } from "../models/models";
 import { Urls } from "../urls";
 
-export const ISRAEL_HIKING_MAP = "Israel Hiking Map";
+export const ISRAEL_HIKING_MAP = "מפה טופוגרפית";
 export const ISRAEL_MTB_MAP = "Israel MTB Map";
 export const ESRI = "ESRI";
 export const SATELLITE = "Satellite Imagery";
@@ -59,12 +59,21 @@ export const initialState =
                 },
                 {
                     key: SATELLITE,
-                    address: "https://gis.shual.org.il/arcgis/rest/services/MAPS/Orto2015v1/MapServer",
+                    address: "https://israelhiking.osm.org.il/Ortho/{z}/{y}/{x}.png",
                     isEditable: false,
                     isOfflineAvailable: false,
                     isOfflineOn: false,
                     minZoom: 7,
-                    maxZoom: 20
+                    maxZoom: 16
+                },
+                {
+                    key: "מפה היברידית",
+                    address: Urls.HYBRID_TILES_ADDRESS,
+                    isEditable: false,
+                    isOfflineAvailable: false,
+                    isOfflineOn: false,
+                    minZoom: 7,
+                    maxZoom: 16
                 }
             ],
             overlays: [

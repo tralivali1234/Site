@@ -32,5 +32,6 @@ export class Urls {
     public static readonly waze = "https://www.waze.com/ul?navigate=yes&zoom=17&ll=";
 
     public static readonly DEFAULT_TILES_ADDRESS = "content/IDF-white.json";
+    public static readonly HYBRID_TILES_ADDRESS = "content/IDF-hybrid.json";
     public static readonly MTB_TILES_ADDRESS = "https://raw.githubusercontent.com/IsraelHikingMap/VectorMap/master/Styles/ilMTB.json";
 }

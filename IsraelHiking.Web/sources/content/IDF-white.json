@@ -238,9 +238,10 @@
     {
       "id": "military area",
       "type": "fill",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "landuse",
+      "minzoom": 9,
       "filter": ["all", ["==", "class", "military"]],
       "paint": {"fill-color": "#FBEFF1"}
     },
@@ -257,6 +258,33 @@
         ["in", "military", "barracks", "airfield", "naval_base"]
       ],
       "paint": {"fill-color": "rgba(224, 224, 224, 1)"}
+    },
+    {
+      "id": "area-AB",
+      "type": "fill",
+      "source": "IHM",
+      "source-layer": "ihm_boundary",
+      "minzoom": 10,
+      "filter": ["all", ["in", "name:en", "Area A", "Area B"]],
+      "paint": {"fill-pattern": "orange_nesw_pattern", "fill-opacity": 0.2}
+    },
+    {
+      "id": "area-A",
+      "type": "fill",
+      "source": "IHM",
+      "source-layer": "ihm_boundary",
+      "minzoom": 10,
+      "filter": ["all", ["==", "name:en", "Area A"]],
+      "paint": {"fill-pattern": "orange_nwse_pattern", "fill-opacity": 0.2}
+    },
+    {
+      "id": "area-AB-outline",
+      "type": "line",
+      "source": "IHM",
+      "source-layer": "ihm_boundary",
+      "minzoom": 10,
+      "filter": ["all", ["in", "name:en", "Area A", "Area B"]],
+      "paint": {"line-color": "orange", "line-opacity": 0.4}
     },
     {
       "id": "contour_major",
@@ -649,22 +677,7 @@
       }
     },
     {
-      "id": "track-paved-casing",
-      "type": "line",
-      "metadata": {"IHM:overlay": true},
-      "source": "IHM",
-      "source-layer": "transportation",
-      "minzoom": 12,
-      "filter": [
-        "all",
-        ["in", "class", "unclassified", "track"],
-        ["in", "tracktype", "grade1", "grade2"],
-        ["!in", "brunnel", "tunnel", "bridge"]
-      ],
-      "paint": {"line-width": {"stops": [[14, 3], [16, 6], [20, 18]]}}
-    },
-    {
-      "id": "track-unpaved-casing",
+      "id": "track_core",
       "type": "line",
       "metadata": {"IHM:overlay": true},
       "source": "IHM",
@@ -673,12 +686,32 @@
       "filter": [
         "all",
         ["in", "class", "track", "unclassified"],
+        ["!=", "brunnel", "tunnel"]
+      ],
+      "layout": {"visibility": "visible"},
+      "paint": {
+        "line-color": "white",
+        "line-width": {"base": 1.55, "stops": [[14, 1.5], [20, 13]]}
+      }
+    },
+    {
+      "id": "track-unpaved-casing-copy",
+      "type": "line",
+      "metadata": {"IHM:overlay": true},
+      "source": "IHM",
+      "source-layer": "transportation",
+      "minzoom": 14,
+      "filter": [
+        "all",
+        ["in", "class", "track"],
         ["!in", "tracktype", "grade1", "grade2"],
         ["!in", "brunnel", "tunnel", "bridge"]
       ],
+      "layout": {"visibility": "visible"},
       "paint": {
-        "line-dasharray": [2, 2],
-        "line-width": {"stops": [[14, 3], [16, 6], [20, 18]]}
+        "line-dasharray": [8, 6],
+        "line-width": {"stops": [[14, 1], [20, 3]]},
+        "line-gap-width": {"stops": [[14, 1], [20, 7]]}
       }
     },
     {
@@ -687,7 +720,7 @@
       "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "transportation",
-      "minzoom": 13,
+      "minzoom": 14,
       "filter": [
         "all",
         ["==", "class", "track"],
@@ -701,21 +734,41 @@
       }
     },
     {
-      "id": "track_core",
+      "id": "track-paved-casing",
       "type": "line",
       "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "transportation",
-      "minzoom": 12,
+      "minzoom": 14,
       "filter": [
         "all",
         ["in", "class", "track", "unclassified"],
-        ["!=", "brunnel", "tunnel"]
+        ["in", "tracktype", "grade1", "grade2"],
+        ["!in", "brunnel", "tunnel", "bridge"]
       ],
       "layout": {"visibility": "visible"},
       "paint": {
-        "line-color": "white",
-        "line-width": {"base": 1.55, "stops": [[14, 2], [20, 15]]}
+        "line-width": {"stops": [[14, 1], [20, 3]]},
+        "line-gap-width": {"stops": [[14, 1], [20, 10]]}
+      }
+    },
+    {
+      "id": "unclassified-casing",
+      "type": "line",
+      "metadata": {"IHM:overlay": true},
+      "source": "IHM",
+      "source-layer": "transportation",
+      "minzoom": 14,
+      "filter": [
+        "all",
+        ["in", "class", "unclassified"],
+        ["!in", "brunnel", "tunnel", "bridge"]
+      ],
+      "layout": {"visibility": "visible"},
+      "paint": {
+        "line-dasharray": [8, 6],
+        "line-width": {"stops": [[14, 1], [20, 3]]},
+        "line-gap-width": {"stops": [[14, 1], [20, 10]]}
       }
     },
     {
@@ -1005,7 +1058,7 @@
     {
       "id": "cable_car",
       "type": "line",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "transportation",
       "minzoom": 12,
@@ -1075,7 +1128,7 @@
     {
       "id": "base_fence",
       "type": "line",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "landuse",
       "minzoom": 14,
@@ -1088,7 +1141,7 @@
     {
       "id": "base_fence_x",
       "type": "symbol",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "landuse",
       "minzoom": 14,
@@ -1107,7 +1160,7 @@
     {
       "id": "cliff",
       "type": "symbol",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "linear_barrier",
       "minzoom": 12,
@@ -1127,7 +1180,7 @@
     {
       "id": "cliff-line",
       "type": "line",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "linear_barrier",
       "minzoom": 12,
@@ -1142,7 +1195,7 @@
     {
       "id": "perimeter_fence-line",
       "type": "line",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "linear_barrier",
       "minzoom": 14,
@@ -1152,7 +1205,7 @@
     {
       "id": "perimeter_fence_x",
       "type": "symbol",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "linear_barrier",
       "minzoom": 14,
@@ -1168,7 +1221,7 @@
     {
       "id": "border_country_low-zoom",
       "type": "line",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "boundary",
       "minzoom": 0,
@@ -1187,7 +1240,7 @@
     {
       "id": "border_country_outer",
       "type": "line",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "ihm_boundary",
       "minzoom": 0,
@@ -1197,7 +1250,7 @@
         ["!=", "maritime", 1],
         [
           "!in",
-          "name_en",
+          "name:en",
           "1949 Armistice Line",
           "Jerusalem City Municipal Boundary (Israel)"
         ]
@@ -1215,7 +1268,7 @@
     {
       "id": "border_country-inner",
       "type": "line",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "ihm_boundary",
       "minzoom": 3,
@@ -1226,7 +1279,7 @@
         ["!=", "maritime", 1],
         [
           "!in",
-          "name_en",
+          "name:en",
           "1949 Armistice Line",
           "Jerusalem City Municipal Boundary (Israel)"
         ]
@@ -1254,7 +1307,7 @@
         ["!=", "maritime", 1],
         [
           "in",
-          "name_en",
+          "name:en",
           "1949 Armistice Line",
           "Jerusalem City Municipal Boundary (Israel)"
         ]
@@ -1281,7 +1334,7 @@
         ["!=", "maritime", 1],
         [
           "in",
-          "name_en",
+          "name:en",
           "1949 Armistice Line",
           "Jerusalem City Municipal Boundary (Israel)"
         ]
@@ -1296,35 +1349,6 @@
         "line-width": {"stops": [[3, 2], [15, 5]]},
         "line-dasharray": [1, 1, 3, 1]
       }
-    },
-    {
-      "id": "area-AB",
-      "type": "fill",
-	  "metadata": {"IHM:overlay": true},
-      "source": "IHM",
-      "source-layer": "ihm_boundary",
-      "minzoom": 13,
-      "filter": ["all", ["in", "name_en", "Area A", "Area B"]],
-      "paint": {"fill-pattern": "orange_nesw_pattern", "fill-opacity": 0.2}
-    },
-    {
-      "id": "area-A",
-      "type": "fill",
-	  "metadata": {"IHM:overlay": true},
-      "source": "IHM",
-      "source-layer": "ihm_boundary",
-      "minzoom": 13,
-      "filter": ["all", ["==", "name_en", "Area A"]],
-      "paint": {"fill-pattern": "orange_nwse_pattern", "fill-opacity": 0.2}
-    },
-    {
-      "id": "area-AB-outline",
-      "type": "line",
-	  "metadata": {"IHM:overlay": true},
-      "source": "IHM",
-      "source-layer": "ihm_boundary",
-      "filter": ["all", ["in", "name_en", "Area A", "Area B"]],
-      "paint": {"line-color": "orange", "line-opacity": 0.4}
     },
     {
       "id": "building_high",
@@ -1545,7 +1569,12 @@
         "text-font": ["Open Sans Regular"],
         "text-offset": [0, 0.5],
         "text-anchor": "top",
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 3,
         "icon-pitch-alignment": "map",
         "icon-image": "airfield",
@@ -1596,7 +1625,12 @@
         "text-font": ["Open Sans Regular"],
         "text-offset": [0, 0.5],
         "text-anchor": "top",
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 3,
         "icon-pitch-alignment": "map",
         "icon-image": "airfield",
@@ -1655,7 +1689,12 @@
         "icon-size": {"stops": [[14, 0.5], [20, 1]]},
         "text-size": {"stops": [[14, 18], [20, 33]]},
         "text-font": ["Open Sans Regular"],
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 5,
         "text-anchor": "top",
         "text-offset": [0, 0.5]
@@ -1691,7 +1730,12 @@
         "icon-size": {"stops": [[10, 0.2], [20, 1.5]]},
         "text-size": {"stops": [[14, 18], [20, 33]]},
         "text-font": ["Open Sans Regular"],
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 5,
         "text-anchor": "top",
         "text-offset": [0, 0.5]
@@ -1718,7 +1762,12 @@
         "icon-size": {"stops": [[14, 0.4], [20, 1]]},
         "text-size": {"stops": [[14, 18], [20, 33]]},
         "text-font": ["Open Sans Regular"],
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 5,
         "text-anchor": "top",
         "text-offset": [0, 0.5]
@@ -1745,7 +1794,12 @@
         "icon-size": {"stops": [[14, 0.5], [20, 1]]},
         "text-size": {"stops": [[14, 18], [20, 33]]},
         "text-font": ["Open Sans Regular"],
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 5,
         "text-anchor": "top",
         "text-offset": [0, 0.5]
@@ -1772,7 +1826,12 @@
         "icon-size": {"stops": [[14, 0.5], [20, 0.8]]},
         "text-size": {"stops": [[14, 18], [20, 33]]},
         "text-font": ["Open Sans Regular"],
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 5,
         "text-anchor": "top",
         "text-offset": [0, 0.5]
@@ -1799,7 +1858,12 @@
         "icon-size": {"stops": [[14, 0.5], [20, 1]]},
         "text-size": {"stops": [[14, 18], [20, 33]]},
         "text-font": ["Open Sans Regular"],
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 5,
         "text-anchor": "top",
         "text-offset": [0, 0.5]
@@ -1941,7 +2005,12 @@
         "icon-size": {"stops": [[14, 0.5], [20, 1]]},
         "text-size": {"stops": [[14, 18], [20, 33]]},
         "text-font": ["Open Sans Regular"],
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 5,
         "text-anchor": "top",
         "text-offset": [0, 0.5]
@@ -1963,7 +2032,12 @@
         "icon-size": {"stops": [[14, 0.5], [20, 1]]},
         "text-size": {"stops": [[14, 18], [20, 33]]},
         "text-font": ["Open Sans Regular"],
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 5,
         "text-anchor": "top",
         "text-offset": [0, 0.5]
@@ -1985,7 +2059,12 @@
         "icon-size": {"stops": [[14, 0.5], [20, 1]]},
         "text-size": {"stops": [[14, 18], [20, 33]]},
         "text-font": ["Open Sans Regular"],
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 5,
         "text-anchor": "top",
         "text-offset": [0, 0.5],
@@ -2012,7 +2091,12 @@
         "icon-size": {"stops": [[14, 0.5], [20, 1]]},
         "text-size": {"stops": [[14, 18], [20, 33]]},
         "text-font": ["Open Sans Regular"],
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 5,
         "text-anchor": "top",
         "text-offset": [0, 0.5],
@@ -2039,7 +2123,12 @@
         "icon-size": {"stops": [[14, 0.5], [20, 1]]},
         "text-size": {"stops": [[14, 18], [20, 33]]},
         "text-font": ["Open Sans Regular"],
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 5,
         "text-anchor": "top",
         "text-offset": [0, 0.5],
@@ -2066,7 +2155,12 @@
         "icon-size": {"stops": [[14, 0.5], [20, 1]]},
         "text-size": {"stops": [[14, 18], [20, 33]]},
         "text-font": ["Open Sans Regular"],
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 5,
         "text-anchor": "top",
         "text-offset": [0, 0.5]
@@ -2114,7 +2208,12 @@
         "icon-size": {"stops": [[14, 0.5], [20, 1]]},
         "text-size": {"stops": [[14, 18], [20, 33]]},
         "text-font": ["Open Sans Regular"],
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 5,
         "text-anchor": "top",
         "text-offset": [0, 0.5]
@@ -2137,7 +2236,12 @@
         "icon-size": {"stops": [[14, 0.5], [20, 1]]},
         "text-size": {"stops": [[14, 18], [20, 33]]},
         "text-font": ["Open Sans Regular"],
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 5,
         "text-anchor": "top",
         "text-offset": [0, 0.5]
@@ -2160,7 +2264,12 @@
         "icon-size": {"stops": [[14, 0.5], [20, 1]]},
         "text-size": {"stops": [[14, 18], [20, 33]]},
         "text-font": ["Open Sans Regular"],
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 5,
         "text-anchor": "top",
         "text-offset": [0, 0.5]
@@ -2183,7 +2292,12 @@
         "icon-size": {"stops": [[14, 0.5], [20, 1]]},
         "text-size": {"stops": [[14, 18], [20, 33]]},
         "text-font": ["Open Sans Regular"],
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 5,
         "text-anchor": "top",
         "text-offset": [0, 0.5]
@@ -2206,7 +2320,12 @@
         "icon-size": {"stops": [[14, 0.5], [20, 1]]},
         "text-size": {"stops": [[14, 18], [20, 33]]},
         "text-font": ["Open Sans Regular"],
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 5,
         "text-anchor": "top",
         "text-offset": [0, 0.5]
@@ -2262,7 +2381,12 @@
       "filter": ["all", ["!=", "brunnel", "tunnel"]],
       "layout": {
         "symbol-placement": "line",
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-font": ["Open Sans Regular"],
         "text-transform": "none",
         "text-size": {"base": 1.4, "stops": [[14, 18], [20, 33]]},
@@ -2282,7 +2406,7 @@
     {
       "id": "label_cable_car",
       "type": "symbol",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "transportation",
       "minzoom": 14,
@@ -2325,7 +2449,12 @@
       "filter": ["all", ["in", "class", "track", "path"]],
       "layout": {
         "symbol-placement": "line",
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-font": ["Open Sans Regular"],
         "text-transform": "none",
         "text-size": {"base": 1.4, "stops": [[14, 16], [20, 33]]},
@@ -2358,7 +2487,12 @@
       "filter": ["all", ["in", "class", "trunk", "primary"]],
       "layout": {
         "symbol-placement": "line",
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-font": ["Open Sans Regular"],
         "text-size": {"base": 1.4, "stops": [[15, 18], [20, 30]]},
         "text-max-angle": 15
@@ -2381,7 +2515,12 @@
       "filter": ["all", ["in", "class", "secondary", "tertiary"]],
       "layout": {
         "symbol-placement": "line",
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-font": ["Open Sans Regular"],
         "text-size": {"base": 1.4, "stops": [[15, 18], [20, 30]]},
         "text-max-angle": 15
@@ -2404,7 +2543,12 @@
       "filter": ["all", ["in", "class", "minor", "residential"]],
       "layout": {
         "symbol-placement": "line",
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-font": ["Open Sans Regular"],
         "text-size": {"base": 1.4, "stops": [[15, 18], [20, 30]]},
         "text-max-angle": 15
@@ -2443,7 +2587,12 @@
         "text-size": {"stops": [[14, 18], [20, 33]]},
         "icon-size": {"stops": [[10, 0.4], [20, 1]]},
         "text-font": ["Open Sans Regular"],
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-max-width": 5,
         "text-anchor": "top",
         "text-offset": {"stops": [[10, [0, 1]], [20, [0, 2]]]}
@@ -2456,14 +2605,19 @@
     {
       "id": "label_neighbourhood",
       "type": "symbol",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "place",
       "minzoom": 14,
       "maxzoom": 16,
       "filter": ["all", ["in", "class", "suburb", "neighbourhood"]],
       "layout": {
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-font": ["Open Sans Regular"],
         "text-max-width": 3,
         "text-size": {"stops": [[8, 12], [20, 16]]}
@@ -2473,14 +2627,19 @@
     {
       "id": "label_hamlet",
       "type": "symbol",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "place",
       "minzoom": 8,
       "maxzoom": 16,
       "filter": ["all", ["in", "class", "hamlet", "isolated_dwelling"]],
       "layout": {
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-font": ["Open Sans Regular"],
         "text-max-width": 3,
         "text-size": {"stops": [[8, 12], [20, 20]]}
@@ -2490,14 +2649,19 @@
     {
       "id": "label_village",
       "type": "symbol",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "place",
       "minzoom": 9,
       "maxzoom": 15,
       "filter": ["all", ["==", "class", "village"]],
       "layout": {
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-font": ["Open Sans Regular"],
         "text-max-width": 3,
         "text-size": {"stops": [[8, 12], [20, 22]]}
@@ -2514,7 +2678,12 @@
       "filter": ["all", ["in", "class", "valley", "ridge"]],
       "layout": {
         "symbol-placement": "line-center",
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-font": ["Open Sans Regular"],
         "text-transform": "none",
         "text-size": {"base": 1.4, "stops": [[9, 15], [13, 40]]},
@@ -2534,14 +2703,19 @@
     {
       "id": "label_town",
       "type": "symbol",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "place",
       "minzoom": 9,
       "maxzoom": 14,
       "filter": ["all", ["==", "class", "town"]],
       "layout": {
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-font": ["Open Sans Regular"],
         "text-max-width": 3,
         "text-size": {"stops": [[8, 13], [20, 24]]}
@@ -2551,14 +2725,19 @@
     {
       "id": "label_city",
       "type": "symbol",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "place",
       "minzoom": 9,
       "maxzoom": 13,
       "filter": ["all", ["==", "class", "city"]],
       "layout": {
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-font": ["Open Sans Regular"],
         "text-max-width": 3,
         "text-size": {"stops": [[9, 14], [13, 26]]}
@@ -2572,14 +2751,19 @@
     {
       "id": "dot_town",
       "type": "symbol",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "place",
       "minzoom": 0,
       "maxzoom": 9,
       "filter": ["all", ["==", "class", "town"]],
       "layout": {
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-font": ["Open Sans Regular"],
         "text-max-width": 5,
         "text-size": {"stops": [[3, 8], [8, 21]]},
@@ -2598,14 +2782,19 @@
     {
       "id": "dot_city",
       "type": "symbol",
-	  "metadata": {"IHM:overlay": true},
+      "metadata": {"IHM:overlay": true},
       "source": "IHM",
       "source-layer": "place",
       "minzoom": 0,
       "maxzoom": 9,
       "filter": ["all", ["==", "class", "city"]],
       "layout": {
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-font": ["Open Sans Regular"],
         "text-max-width": 5,
         "text-size": {"stops": [[3, 11], [8, 20]]},
@@ -2630,7 +2819,12 @@
       "maxzoom": 8,
       "filter": ["all", ["==", "class", "country"], ["has", "iso_a2"]],
       "layout": {
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "text-font": ["Open Sans Bold"],
         "text-max-width": 5,
         "text-size": {"stops": [[3, 12], [8, 33]]}
@@ -2647,7 +2841,12 @@
       "source": "IHM",
       "source-layer": "water_name",
       "layout": {
-        "text-field": "{name_he}",
+        "text-field": [
+          "coalesce",
+          ["get", "name:he"],
+          ["get", "name"],
+          ["get", "name:latin"]
+        ],
         "symbol-placement": "point",
         "text-font": ["Open Sans Regular"],
         "text-size": {"stops": [[14, 16], [20, 30]]},

@@ -82,6 +82,7 @@
     <Content Update="appsettings.Production.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <None Include="sources\content\IDF-hybrid.json" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="AspNetCore.Proxy" Version="4.0.1" />
