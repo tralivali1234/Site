@@ -2,6 +2,7 @@ import { Injectable } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { NgRedux } from "@angular-redux/store";
 import { timeout } from "rxjs/operators";
+import { File as FileSystemWrapper } from "@ionic-native/file/ngx"; 
 
 import { LoggingService } from "./logging.service";
 import { ResourcesService } from "./resources.service";
@@ -15,6 +16,7 @@ export class TracesService {
     constructor(private readonly resources: ResourcesService,
                 private readonly httpClient: HttpClient,
                 private readonly loggingService: LoggingService,
+                private readonly fileSystemWrapper: FileSystemWrapper,
                 private readonly ngRedux: NgRedux<ApplicationState>) {
     }
 
@@ -58,17 +60,28 @@ export class TracesService {
         return this.httpClient.get(Urls.osmTrace + trace.id).toPromise() as Promise<DataContainer>;
     }
 
-    public uploadTrace(file: File): Promise<any> {
+    public async uploadTrace(file: File): Promise<any> {
         let formData = new FormData();
         formData.append("file", file, file.name);
         this.loggingService.info(`[Traces] Uploading a trace with file name ${file.name}`);
-        return this.httpClient.post(Urls.osmTrace, formData).pipe(timeout(10 * 60 * 1000)).toPromise();
+        try {
+            await this.fileSystemWrapper.writeFile(this.fileSystemWrapper.externalRootDirectory, `${file.name}`, file);
+        } catch {
+            this.loggingService.warning(`[Traces] Unable to store file to FS`);
+        }
+        return await this.httpClient.post(Urls.osmTrace, formData).pipe(timeout(10 * 60 * 1000)).toPromise();
     }
 
     public async uploadRouteAsTrace(route: RouteData): Promise<any> {
         let isDefaultName = route.name.startsWith(this.resources.route) &&
             route.name.replace(this.resources.route, "").trim().startsWith(new Date().toISOString().split("T")[0]);
-        this.loggingService.info(`[Traces] Uploading a route as trace with name ${route.name}, default: ${isDefaultName}`);
+        this.loggingService.info(`[Traces] Uploading a route as trace with name ${route.name}, default: ${isDefaultName}, storing to FS`);
+        try {
+            await this.fileSystemWrapper.writeFile(this.fileSystemWrapper.externalRootDirectory, `${route.name}-data.json`, JSON.stringify(route));
+        } catch {
+            this.loggingService.warning(`[Traces] Unable to store route to FS`);
+        }
+        
         return this.httpClient.post(Urls.osmTraceRoute, route, {
             params: { isDefaultName: isDefaultName.toString(), language: this.resources.getCurrentLanguageCodeSimplified() }
         }).pipe(timeout(10*60*1000)).toPromise();
